@@ -64,7 +64,10 @@ export const PageDetailEditor = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const shareCardRef = useRef<HTMLDivElement>(null);
 
-  const isBackendAIReady = false; 
+  // 🔑 【真・Gemini API 金鑰設定區】
+  const GEMINI_API_KEY =
+  process.env.GEMINI_API_KEY ??
+  '';
 
   // 提取日記真實日期的核心輔助函式
   const getJournalTargetDate = () => {
@@ -79,121 +82,108 @@ export const PageDetailEditor = ({
   };
 
   const handleFetchAISummary = async () => {
+    // 🔍 聽診探針 1
+    window.alert("🚀 【探針 1】按鈕點擊成功！開始擷取日記內容...");
     setIsGenerating(true);
-    console.log("🚀 IG 分享工坊：開始動態提煉日記...");
     
+    let rawText = "";
+
+    // 1. 嘗試從 BlockSuite 內存中抽取核心純文字
     try {
-      const textElements = document.querySelectorAll(
-        '[contenteditable="true"], .v-line, .v-text, .affine-paragraph-block-container, [data-block-id] span, p'
-      );
-      
-      let rawText = Array.from(textElements)
-        .map(el => el.textContent || '')
-        .map(text => text.trim())
-        .filter(text => !text.includes('affine-') && text.length > 0)
-        .join('\n')
-        .trim();
+      const blockSuiteDoc = editor?.doc?.blockSuiteDoc as any;
+      if (blockSuiteDoc && typeof blockSuiteDoc.getBlocksByFlavour === 'function') {
+        const paragraphBlocks = blockSuiteDoc.getBlocksByFlavour('affine:paragraph') || [];
+        const listBlocks = blockSuiteDoc.getBlocksByFlavour('affine:list') || [];
+        const allTextBlocks = [...paragraphBlocks, ...listBlocks];
 
-      if (!rawText) {
-        const bodyText = document.body.textContent || '';
-        rawText = bodyText
-          .split('\n')
-          .map(line => line.trim())
-          .filter(line => {
-            return line.length > 2 && 
-                   !line.includes('✨') && 
-                   !line.includes('📸') && 
-                   !line.includes('🚀') && 
-                   !line.includes('分享工坊') && 
-                   !line.includes('提煉');
+        rawText = allTextBlocks
+          .map(block => {
+            const textModel = block?.model?.text;
+            return textModel ? textModel.toString().trim() : "";
           })
-          .join('\n')
-          .trim();
+          .filter(text => text.length > 0)
+          .join('\n');
       }
+    } catch (blockSuiteErr: any) {
+      window.alert("⚠️ 內存讀取失敗，錯誤：" + blockSuiteErr?.message);
+    }
 
-      if (!rawText) {
-        setAiSummary([
-          "📖 今天是個神祕的日子...",
-          "✍️ 稍微在下方編輯器裡敲點字，就能一鍵生成專屬的 IG 限動大綱喔！"
-        ]);
-        setIsGenerating(false);
-        return;
+    // 2. 備援防線：DOM 精準過濾
+    if (!rawText) {
+      try {
+        const textElements = document.querySelectorAll(
+          '[contenteditable="true"], .v-line, .v-text, p'
+        );
+        rawText = Array.from(textElements)
+          .map(el => el.textContent || '')
+          .map(t => t.trim())
+          .filter(t => !t.includes('affine-') && !t.includes('分享工坊') && t.length > 1)
+          .join('\n');
+      } catch (domErr: any) {
+        window.alert("⚠️ DOM 讀取失敗，錯誤：" + domErr?.message);
       }
+    }
 
-      if (isBackendAIReady) {
-        const blockSuiteDoc = editor.doc.blockSuiteDoc as any;
-        const affineAIEngine = 
-          blockSuiteDoc?.workspace?.ai || 
-          blockSuiteDoc?.service?.ai || 
-          (window as any).currentEditor?.host?.std?.get?.('affine:ai');
+    // 🔍 聽診探針 2
+    window.alert("🎯 【探針 2】日記文字擷取完畢！\n抓到的字數長度：" + rawText.length + " 字\n文字前20字：" + rawText.slice(0, 20));
 
-        if (affineAIEngine && typeof affineAIEngine.execute === 'function') {
-          const aiPrompt = `你是一個精緻的生活雜誌編輯。請閱讀以下使用者的日記內文，並幫我整理出一個反映整篇日記情緒或氛圍的短標題（包含一個 Emoji），以及適合放上 Instagram 限時動態的生活精簡大綱（根據內容豐富度，提供 1 到 3 句即可，不需要強行湊數）。請嚴格以 JSON 陣列格式回傳，例如：["情緒短標題", "大綱第一句", "大綱第二句"]。\n日記內文如下：\n${rawText}`;
-          
-          const aiResponse = await affineAIEngine.execute({ prompt: aiPrompt });
-          const resultString = typeof aiResponse === 'string' ? aiResponse : aiResponse?.content;
-          const matchJson = resultString?.match(/\[.*\]/);
-          
-          if (matchJson && matchJson[0]) {
-            setAiSummary(JSON.parse(matchJson[0]));
-            setIsGenerating(false);
-            return;
-          }
+    if (!rawText || rawText.trim().length === 0) {
+      setAiSummary([
+        "📖 今天是個神祕的日子...",
+        "✍️ 稍微在下方編輯器裡敲點字，就能一鍵生成專屬的 IG 限動大綱喔！"
+      ]);
+      setIsGenerating(false);
+      return;
+    }
+
+    // 3. 直連 Google 官方開發者 Gemini API 通道
+    if (GEMINI_API_KEY) {
+      try {
+        const aiPrompt = `你是一個精緻的生活雜誌資深編輯。請仔細閱讀以下使用者打的全部日記內文，幫我精準提煉出一個反映整篇日記核心情緒的短標題（必須包含一個 Emoji），以及適合放上 Instagram 限時動態的生活重點大綱（根據內容豐富度與重要性，聰明提煉出 1 到 3 句即可，不需要硬湊）。
+        【🔥 核心語意鐵律】：
+        1. 每一句大綱都必須是「真正對全篇日記進行高階概括大綱」，不要直接複製原文。
+        2. 每一句大綱必須是「語意完全完整、流暢能單獨成句」的優雅短句，嚴禁在半路或結尾出現任何「...」。
+        3. 請嚴格以標準的 JSON 陣列字串格式回傳，格式範例：["情緒標題", "精緻大綱一", "精緻大綱二"]
+        使用者的全部日記內文如下：\n${rawText}`;
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+        
+        // 🔍 聽診探針 3
+        window.alert("🤖 【探針 3】準備發送 POST 請求給 Google Gemini 伺服器...");
+        
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [{ text: aiPrompt }] }] })
+        });
+
+        const data = await response.json();
+        
+        if (data?.error) {
+          window.alert("🛑 【Google API 拒絕請求】\n錯誤代碼：" + data.error.code + "\n原因：" + data.error.message);
+          setIsGenerating(false);
+          return;
         }
-      }
 
-      // 🛑 智慧備援核心
-      const textLower = rawText.toLowerCase();
-      const allSentences = rawText.split(/[。\n!?]/).map(s => s.trim()).filter(s => s.length > 2);
+        const rawAiReply = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        
+        // 🔍 聽診探針 4
+        window.alert("🎉 【探針 4】Gemini 成功響應！\n原始回傳內容：\n" + rawAiReply);
 
-      let scorePressure = 0;
-      let scoreConfidence = 0;
-      let scoreCoding = 0;
-
-      if (textLower.includes("壓力") || textLower.includes("悶") || textLower.includes("累")) scorePressure += 2;
-      if (textLower.includes("簡報") || textLower.includes("presentation") || textLower.includes("4/22")) scorePressure += 1;
-      if (textLower.includes("成功") || textLower.includes("滿足") || textLower.includes("信心") || textLower.includes("好")) scoreConfidence += 2;
-      if (textLower.includes("除錯") || textLower.includes("debugging") || textLower.includes("代碼") || textLower.includes("code")) scoreCoding += 2;
-
-      let detectedMood = "✨ 心情手札";
-      if (scorePressure > scoreConfidence && scoreCoding > 0) {
-        detectedMood = "⏳ 頂著簡報壓力，在代碼裡激戰的一天";
-      } else if (scoreConfidence >= scorePressure && scoreCoding > 0) {
-        detectedMood = "💻 那些卡很久的 Bug 迎刃而解，信心點滿！";
-      } else if (scoreConfidence > scorePressure) {
-        detectedMood = "☀️ 內心感到格外充實與滿足的時刻";
-      } else if (scorePressure > 0) {
-        detectedMood = "☕ 稍微給疲憊的自己一個呼吸的留白";
-      }
-
-      let dynamicSummary = [detectedMood];
-
-      if (textLower.includes("資工") || textLower.includes("csie") || textLower.includes("台大") || textLower.includes("ntu")) {
-        dynamicSummary.push("📍 整天埋首在 NTU 資工館，跟複雜的系統硬碰硬");
-      }
-
-      if (textLower.includes("拉麵") || textLower.includes("公館")) {
-        dynamicSummary.push("🍜 用一碗濃郁的拉麵犒賞今日的靈魂");
-      } else if (textLower.includes("咖啡") || textLower.includes("美式") || textLower.includes("americano")) {
-        dynamicSummary.push("☕ 躲進安靜的咖啡廳，用冰美式沉澱繁雜思緒");
-      }
-
-      if (scoreConfidence > 0 && (textLower.includes("投影片") || textLower.includes("簡報"))) {
-        dynamicSummary.push("✨ 順利完成了簡報投影片，信心滿滿迎接挑戰");
-      }
-
-      if (dynamicSummary.length === 1 && allSentences.length > 0) {
-        const longestSentence = [...allSentences].sort((a, b) => b.length - a.length)[0];
-        dynamicSummary.push(`📝 ${longestSentence.slice(0, 24)}...`);
-      }
-
-      setTimeout(() => {
-        setAiSummary(dynamicSummary); 
+        const matchJson = rawAiReply?.match(/\[.*\]/s);
+        if (matchJson && matchJson[0]) {
+          const cleanArray = JSON.parse(matchJson[0]);
+          setAiSummary(cleanArray);
+        } else {
+          window.alert("⚠️ 格式錯誤：AI 回傳的內容沒辦法轉成格子陣列");
+        }
+      } catch (apiErr: any) {
+        window.alert("🛑 【連線爆發致命錯誤】原因：" + apiErr?.message);
+      } finally {
         setIsGenerating(false);
-      }, 300);
-
-    } catch (error) {
-      console.error("提煉大綱錯誤:", error);
+      }
+    } else {
+      window.alert("🛑 【核心阻斷】Henry，你忘記在第 64 行配置你的 GEMINI_API_KEY 金鑰字串了！");
       setIsGenerating(false);
     }
   };
@@ -225,7 +215,7 @@ export const PageDetailEditor = ({
     <>
       {/* --- 🚀 方案 A 強制外掛分享面板 --- */}
       <div className="ig-share-panel" style={{ padding: '20px', background: '#f5f5f7', borderRadius: '12px', marginBottom: '20px', border: '2px dashed #E1306C', zIndex: 9999, position: 'relative' }}>
-        <h4 style={{ margin: '0 0 10px 0', color: '#E1306C' }}>✨ Instagram Story 分享工坊 (動態視覺補償版)</h4>
+        <h4 style={{ margin: '0 0 10px 0', color: '#E1306C' }}>✨ Instagram Story 分享工坊 (真・全內文動態適配版)</h4>
         
         <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
           <button 
@@ -233,7 +223,7 @@ export const PageDetailEditor = ({
             disabled={isGenerating}
             style={{ padding: '8px 12px', background: '#0071e3', color: '#fff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
           >
-            {isGenerating ? 'AI 正在提煉中...' : '🤖 智慧 AI 提煉日記大綱'}
+            {isGenerating ? 'Gemini 正在全篇語意提煉中...' : '🤖 呼叫真・Gemini 提煉日記大綱'}
           </button>
           
           <label style={{ padding: '8px 12px', background: '#e8e8ed', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', color: '#1d1d1f' }}>
@@ -261,7 +251,7 @@ export const PageDetailEditor = ({
               position: 'relative',
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'space-between', // 💡 改為上下均勻散開，消滅死白太空感
+              justifyContent: 'space-between', 
               alignItems: 'center',
               padding: '45px 30px 40px 30px', 
               color: bgImage ? '#ffffff' : '#111111',
@@ -272,7 +262,6 @@ export const PageDetailEditor = ({
           >
             {bgImage && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0, 0, 0, 0.4)', zIndex: 1 }} />}
             
-            {/* 🔝 上半部：標題區塊 */}
             <div style={{ zIndex: 2, textAlign: 'center', width: '100%' }}>
               <p style={{ letterSpacing: '4px', fontSize: '11px', opacity: 0.8, margin: '0 0 5px 0' }}>DAILY LOG</p>
               <h2 style={{ fontSize: '18px', margin: '0 0 25px 0', fontWeight: 600 }}>
@@ -288,7 +277,6 @@ export const PageDetailEditor = ({
               </h2>
             </div>
               
-            {/* 📂 中半部：動態大綱格子群組 */}
             <div style={{ 
               zIndex: 2, 
               textAlign: 'left', 
@@ -296,38 +284,30 @@ export const PageDetailEditor = ({
               flexDirection: 'column', 
               gap: '16px', 
               width: '100%',
-              flexGrow: 1,                 // 💡 讓中段具備拉伸彈性
-              justifyContent: 'center'     // 💡 當數量少時，格子會在中央優雅排開，絕不突兀
+              flexGrow: 1,                 
+              justifyContent: 'center'     
             }}>
               {aiSummary.map((bullet, index) => (
                 <div key={index} style={{ 
-                  fontSize: aiSummary.length <= 2 ? '15px' : '14px', // 💡 句子少時，字體自動微微放大提升飽滿度
+                  fontSize: aiSummary.length <= 2 ? '15px' : '14px', 
                   lineHeight: '1.6', 
                   background: bgImage ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.03)',
                   backdropFilter: bgImage ? 'blur(8px)' : 'none',
-                  padding: aiSummary.length <= 2 ? '16px 20px' : '12px 16px', // 💡 句子少時，格子自動加厚
+                  padding: aiSummary.length <= 2 ? '16px 20px' : '12px 16px', 
                   borderRadius: '10px',
                   border: bgImage ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.05)',
-                  fontWeight: index === 0 ? 600 : 400, // 第一格情緒標題加粗
+                  fontWeight: index === 0 ? 600 : 400, 
                   letterSpacing: '0.5px'
                 }}>{bullet}</div>
               ))}
             </div>
               
-            {/* 🎨 下半部：設計師生活金句簽名（消滅底部空洞感的靈魂補償） */}
             <div style={{ zIndex: 2, textAlign: 'center', width: '100%', marginTop: '20px' }}>
               {aiSummary.length <= 2 && (
-                <p style={{ 
-                  fontSize: '11px', 
-                  fontStyle: 'italic', 
-                  opacity: 0.6, 
-                  margin: '0 0 25px 0',
-                  letterSpacing: '1px'
-                }}>
+                <p style={{ fontSize: '11px', fontStyle: 'italic', opacity: 0.6, margin: '0 0 25px 0', letterSpacing: '1px' }}>
                   “ 將當下的思緒，釀成明天的勇氣 ”
                 </p>
               )}
-              
               <p style={{ fontSize: '10px', opacity: 0.5, letterSpacing: '2px', margin: 0 }}>
                 via AFFiNE Journal
               </p>
