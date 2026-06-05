@@ -5,13 +5,16 @@ import {
   Menu,
   MenuItem,
   MenuSeparator,
+  notify,
   Scrollable,
   useConfirmModal,
 } from '@affine/component';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { Guard } from '@affine/core/components/guard';
 import { MoveToTrash } from '@affine/core/components/page-list';
 import { WorkspaceServerService } from '@affine/core/modules/cloud';
 import {
+  type Doc,
   type DocRecord,
   DocService,
   DocsService,
@@ -20,10 +23,19 @@ import { DocDisplayMetaService } from '@affine/core/modules/doc-display-meta';
 import { IntegrationService } from '@affine/core/modules/integration';
 import { JournalService } from '@affine/core/modules/journal';
 import {
+  DocGrantedUsersService,
+  type Member,
+  MemberSearchService,
+} from '@affine/core/modules/permissions';
+import { ShareMenuContent } from '@affine/core/modules/share-menu';
+import {
   ViewService,
   WorkbenchLink,
   WorkbenchService,
 } from '@affine/core/modules/workbench';
+import { WorkspaceService } from '@affine/core/modules/workspace';
+import { UserFriendlyError } from '@affine/error';
+import { DocRole, WorkspaceMemberStatus } from '@affine/graphql';
 import { useI18n } from '@affine/i18n';
 import { Text } from '@blocksuite/affine/store';
 import {
@@ -34,8 +46,10 @@ import {
   ExpandCloseIcon,
   ExpandFullIcon,
   PlusIcon,
+  ShareIcon,
 } from '@blocksuite/icons/rc';
 import {
+  FrameworkScope,
   useLiveData,
   useService,
   useServiceOptional,
@@ -45,6 +59,7 @@ import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
 import type {
+  ChangeEvent,
   HTMLAttributes,
   MouseEvent,
   PropsWithChildren,
@@ -53,9 +68,9 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CalendarEvents } from './calendar-events';
-import * as styles from './journal.css';
 import { JournalTemplateOnboarding } from './template-onboarding';
 import { JournalTemplateSetting } from './template-setting';
+import * as styles from './journal.css';
 
 /**
  * @internal
@@ -111,6 +126,257 @@ const PageItem = ({
   );
 };
 
+const DocShareMenuTrigger = ({ docId }: { docId: string }) => {
+  const docsService = useService(DocsService);
+  const workspaceService = useService(WorkspaceService);
+  const [openedDoc, setOpenedDoc] = useState<Doc | null>(null);
+  const releaseRef = useRef<(() => void) | null>(null);
+
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      if (open) {
+        try {
+          const { doc, release } = docsService.open(docId);
+          releaseRef.current = release;
+          setOpenedDoc(doc);
+        } catch {
+          // doc not yet in collection
+        }
+      } else {
+        releaseRef.current?.();
+        releaseRef.current = null;
+        setOpenedDoc(null);
+      }
+    },
+    [docId, docsService]
+  );
+
+  useEffect(() => {
+    return () => {
+      releaseRef.current?.();
+      releaseRef.current = null;
+    };
+  }, []);
+
+  return (
+    <div onClick={e => e.stopPropagation()}>
+      <Menu
+        rootOptions={{ onOpenChange: handleOpenChange }}
+        contentOptions={{ align: 'end', sideOffset: 4 }}
+        items={
+          openedDoc ? (
+            <FrameworkScope scope={openedDoc.scope}>
+              <ShareMenuContent
+                workspaceMetadata={workspaceService.workspace.meta}
+                currentPage={openedDoc.blockSuiteDoc}
+                onEnableAffineCloud={() => {}}
+              />
+            </FrameworkScope>
+          ) : null
+        }
+      >
+        <IconButton
+          size="small"
+          className={styles.pageItemShareBtn}
+          aria-label="Share this doc"
+        >
+          <ShareIcon />
+        </IconButton>
+      </Menu>
+    </div>
+  );
+};
+
+const ShareDayContent = ({
+  date,
+  docIds,
+  onClose,
+}: {
+  date: dayjs.Dayjs;
+  docIds: string[];
+  onClose: () => void;
+}) => {
+  const docsService = useService(DocsService);
+  const memberSearchService = useService(MemberSearchService);
+  const [selectedMembers, setSelectedMembers] = useState<Member[]>([]);
+  const [role, setRole] = useState<DocRole>(DocRole.Reader);
+  const [searchText, setSearchText] = useState('');
+  const searchResults = useLiveData(memberSearchService.result$);
+
+  const handleSearchChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      setSearchText(val);
+      if (val.trim()) {
+        memberSearchService.search(val.trim());
+      } else {
+        memberSearchService.reset();
+      }
+    },
+    [memberSearchService]
+  );
+
+  const handleSelectMember = useCallback(
+    (member: Member) => {
+      setSelectedMembers(prev => {
+        if (prev.some(m => m.id === member.id)) return prev;
+        return [...prev, member];
+      });
+      setSearchText('');
+      memberSearchService.reset();
+    },
+    [memberSearchService]
+  );
+
+  const handleRemoveMember = useCallback((memberId: string) => {
+    setSelectedMembers(prev => prev.filter(m => m.id !== memberId));
+  }, []);
+
+  const handleShare = useAsyncCallback(async () => {
+    const userIds = selectedMembers.map(m => m.id);
+    try {
+      for (const docId of docIds) {
+        const { doc, release } = docsService.open(docId);
+        try {
+          const grantService = doc.scope.get(DocGrantedUsersService);
+          await grantService.grantUsersRole(userIds, role);
+        } finally {
+          release();
+        }
+      }
+      notify.success({ title: 'Shared successfully' });
+      onClose();
+    } catch (e) {
+      const err = UserFriendlyError.fromAny(e);
+      notify.error({ title: err.message || 'Failed to share' });
+    }
+  }, [docsService, docIds, selectedMembers, role, onClose]);
+
+  const filteredResults = useMemo(
+    () =>
+      searchResults
+        .filter(m => m.status === WorkspaceMemberStatus.Accepted)
+        .filter(m => !selectedMembers.some(s => s.id === m.id))
+        .slice(0, 6),
+    [searchResults, selectedMembers]
+  );
+
+  return (
+    <div className={styles.shareDayMenuContent}>
+      <div className={styles.shareDayTitle}>
+        Share {date.format('MMM D')}&apos;s notes
+      </div>
+      <div className={styles.shareDaySearchArea}>
+        {selectedMembers.map(member => (
+          <span key={member.id} className={styles.shareDayChip}>
+            {member.name || member.email}
+            <button
+              className={styles.shareDayChipRemove}
+              onClick={() => handleRemoveMember(member.id)}
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          className={styles.shareDayInput}
+          placeholder={selectedMembers.length ? '' : '@ Add people...'}
+          value={searchText}
+          onChange={handleSearchChange}
+          autoFocus
+        />
+      </div>
+      {filteredResults.length > 0 && (
+        <div className={styles.shareDayResults}>
+          {filteredResults.map(member => (
+            <button
+              key={member.id}
+              className={styles.shareDayResult}
+              onClick={() => handleSelectMember(member)}
+            >
+              <span className={styles.shareDayResultName}>
+                {member.name || member.email}
+              </span>
+              {member.name && member.email && (
+                <span className={styles.shareDayResultEmail}>
+                  {member.email}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className={styles.shareDayRoleRow}>
+        <span>Access:</span>
+        <Menu
+          items={
+            <>
+              <MenuItem
+                onSelect={() => setRole(DocRole.Reader)}
+                selected={role === DocRole.Reader}
+              >
+                Can view
+              </MenuItem>
+              <MenuItem
+                onSelect={() => setRole(DocRole.Editor)}
+                selected={role === DocRole.Editor}
+              >
+                Can edit
+              </MenuItem>
+            </>
+          }
+        >
+          <button className={styles.shareDayRoleBtn}>
+            {role === DocRole.Reader ? 'Can view' : 'Can edit'} ▾
+          </button>
+        </Menu>
+      </div>
+      <button
+        className={styles.shareDaySubmit}
+        disabled={selectedMembers.length === 0}
+        onClick={handleShare}
+      >
+        Share with {selectedMembers.length || 0}{' '}
+        {selectedMembers.length === 1 ? 'person' : 'people'}
+      </button>
+    </div>
+  );
+};
+
+const ShareDayDialog = ({
+  date,
+  docIds,
+}: {
+  date: dayjs.Dayjs;
+  docIds: string[];
+}) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Menu
+      rootOptions={{ open, onOpenChange: setOpen }}
+      contentOptions={{ align: 'end', sideOffset: 4 }}
+      items={
+        open ? (
+          <ShareDayContent
+            date={date}
+            docIds={docIds}
+            onClose={() => setOpen(false)}
+          />
+        ) : null
+      }
+    >
+      <IconButton
+        size="small"
+        className={styles.shareDayBtn}
+        aria-label="Share this day's notes"
+      >
+        <ShareIcon />
+      </IconButton>
+    </Menu>
+  );
+};
+
 type NavItemName = 'createdToday' | 'updatedToday';
 interface NavItem {
   name: NavItemName;
@@ -148,11 +414,16 @@ const JournalCalendarDateCell = ({
   const events = useLiveData(
     useMemo(() => calendar.eventsByDate$(cell.date), [calendar, cell.date])
   );
-  const journals = useLiveData(
+  const allDateDocs = useLiveData(
     useMemo(
       () => journalService.journalsByDate$(dateKey),
       [dateKey, journalService]
     )
+  );
+  // Only count actual journal docs (title === 'YYYY-MM-DD'), not linked todo/meeting docs.
+  const journals = useMemo(
+    () => allDateDocs.filter(doc => (doc.meta$.value.title ?? '') === dateKey),
+    [allDateDocs, dateKey]
   );
   const agendaLimit = hasJournal ? 3 : 4;
   const visibleEvents = events.slice(0, agendaLimit);
@@ -279,10 +550,20 @@ const FullCalendarDayCell = ({
 
   const handleCreateDoc = useCallback(
     (type: 'todo' | 'meeting') => {
+      // Todo: one per day — navigate to existing if present.
+      if (type === 'todo' && todoDocs.length > 0) {
+        workbench.openDoc(todoDocs[0].id, { at: 'active' });
+        return;
+      }
+      // Meeting: multiple allowed — always create a new one with a sequence number.
+
       const prefix = type === 'todo' ? 'Todo' : 'Meeting';
-      const title = `${prefix} · ${day.format('MMM D, YYYY')}`;
-      // createDoc sets the title synchronously, so setJournalDate (called below)
-      // will see the correct title in journalsByDate$ immediately — no "2 journals" flash.
+      const baseTitle = `${prefix} · ${day.format('MMM D, YYYY')}`;
+      const count = meetingDocs.length;
+      const title =
+        type === 'meeting' && count > 0
+          ? `${baseTitle} (${count + 1})`
+          : baseTitle;
       const newDoc = docsService.createDoc({
         title,
         docProps:
@@ -338,7 +619,15 @@ const FullCalendarDayCell = ({
       docsService.addLinkedDoc(journalDoc.id, newDoc.id).catch(console.error);
       workbench.openDoc(newDoc.id, { at: 'active' });
     },
-    [dateKey, day, docsService, journalService, workbench]
+    [
+      dateKey,
+      day,
+      docsService,
+      journalService,
+      workbench,
+      todoDocs,
+      meetingDocs,
+    ]
   );
 
   return (
@@ -382,23 +671,62 @@ const FullCalendarDayCell = ({
       </div>
       <div className={styles.fullCalendarDayAgenda}>
         {journalDocs.length > 0 ? (
-          <span className={styles.fullCalendarAgendaItem} data-type="journal">
+          <span
+            className={styles.fullCalendarAgendaItem}
+            data-type="journal"
+            onClick={e => {
+              e.stopPropagation();
+              workbench.openDoc(journalDocs[0].id, { at: 'active' });
+            }}
+          >
             {journalDocs.length > 1
               ? `${journalDocs.length} Journals`
               : 'Journal'}
           </span>
         ) : null}
         {todoDocs.length > 0 ? (
-          <span className={styles.fullCalendarAgendaItem} data-type="todo">
+          <span
+            className={styles.fullCalendarAgendaItem}
+            data-type="todo"
+            onClick={e => {
+              e.stopPropagation();
+              workbench.openDoc(todoDocs[0].id, { at: 'active' });
+            }}
+          >
             {todoDocs.length > 1 ? `${todoDocs.length} Todos` : 'Todo'}
           </span>
         ) : null}
-        {meetingDocs.length > 0 ? (
-          <span className={styles.fullCalendarAgendaItem} data-type="meeting">
-            {meetingDocs.length > 1
-              ? `${meetingDocs.length} Meetings`
-              : 'Meeting'}
+        {meetingDocs.length === 1 ? (
+          <span
+            className={styles.fullCalendarAgendaItem}
+            data-type="meeting"
+            onClick={e => {
+              e.stopPropagation();
+              workbench.openDoc(meetingDocs[0].id, { at: 'active' });
+            }}
+          >
+            Meeting
           </span>
+        ) : meetingDocs.length > 1 ? (
+          <Menu
+            rootOptions={{ modal: false }}
+            items={meetingDocs.map(doc => (
+              <MenuItem
+                key={doc.id}
+                onSelect={() => workbench.openDoc(doc.id, { at: 'active' })}
+              >
+                {doc.meta$.value.title || 'Untitled'}
+              </MenuItem>
+            ))}
+          >
+            <span
+              className={styles.fullCalendarAgendaItem}
+              data-type="meeting"
+              onClick={e => e.stopPropagation()}
+            >
+              {meetingDocs.length} Meetings
+            </span>
+          </Menu>
         ) : null}
         {visibleEvents.map(event => (
           <span
@@ -604,8 +932,13 @@ export const EditorJournalPanel = () => {
   const openJournal = useCallback(
     (date: string) => {
       const docs = journalService.journalsByDate$(date).value;
-      if (docs.length > 0) {
-        workbench.openDoc(docs[0].id, { at: 'active' });
+      // Find the actual journal doc (title === 'YYYY-MM-DD'), not linked
+      // todo/meeting docs that share the same journal date property.
+      const journalDoc = docs.find(
+        doc => (doc.meta$.value.title ?? '') === date
+      );
+      if (journalDoc) {
+        workbench.openDoc(journalDoc.id, { at: 'active' });
       } else {
         workbench.open(`/journals?date=${date}`, { at: 'active' });
       }
@@ -818,6 +1151,18 @@ const JournalDailyCountBlock = ({ date }: JournalBlockProps) => {
     '--item-count': String(headerItems.length),
   });
 
+  const allDocIds = useMemo(() => {
+    const seen = new Set<string>();
+    const ids: string[] = [];
+    for (const doc of [...createdToday, ...updatedToday]) {
+      if (!seen.has(doc.id)) {
+        seen.add(doc.id);
+        ids.push(doc.id);
+      }
+    }
+    return ids;
+  }, [createdToday, updatedToday]);
+
   return (
     <div className={styles.dailyCount} style={vars}>
       <header className={styles.dailyCountHeader}>
@@ -835,6 +1180,7 @@ const JournalDailyCountBlock = ({ date }: JournalBlockProps) => {
             </button>
           );
         })}
+        <ShareDayDialog date={date} docIds={allDocIds} />
       </header>
 
       <main className={styles.dailyCountContainer} data-active={activeItem}>
@@ -857,6 +1203,7 @@ const JournalDailyCountBlock = ({ date }: JournalBlockProps) => {
                       tabIndex={name === activeItem ? 0 : -1}
                       key={index}
                       docId={pageRecord.id}
+                      right={<DocShareMenuTrigger docId={pageRecord.id} />}
                     />
                   ))}
                 </div>
@@ -982,11 +1329,16 @@ const JournalConflictBlock = ({ date }: JournalBlockProps) => {
   const docRecordList = useService(DocsService).list;
   const journalService = useService(JournalService);
   const dateString = date.format('YYYY-MM-DD');
-  const docs = useLiveData(
+  const allDocs = useLiveData(
     useMemo(
       () => journalService.journalsByDate$(dateString),
       [dateString, journalService]
     )
+  );
+  // Only count actual journal docs (title === 'YYYY-MM-DD'), not linked todo/meeting docs.
+  const docs = useMemo(
+    () => allDocs.filter(doc => (doc.meta$.value.title ?? '') === dateString),
+    [allDocs, dateString]
   );
   const docRecords = useLiveData(
     docRecordList.docs$.map(records =>

@@ -85,7 +85,12 @@ export class JournalService extends Service {
     const day = dayjs(maybeDate);
     const title = day.format(JOURNAL_DATE_FORMAT);
     const docs = this.journalsByDate$(title).value;
-    if (docs.length) return docs[0];
+    // Filter for the actual journal doc (title = 'YYYY-MM-DD'), excluding
+    // linked todo/meeting docs which share the same journal date property.
+    const journalDoc = docs.find(
+      doc => (doc.meta$.value.title ?? '') === title
+    );
+    if (journalDoc) return journalDoc;
     return this.createJournal(maybeDate);
   }
 }

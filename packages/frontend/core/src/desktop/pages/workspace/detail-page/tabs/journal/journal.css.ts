@@ -196,6 +196,156 @@ export const pageItemIcon = style({
   height: 20,
   color: cssVar('iconColor'),
 });
+export const pageItemShareBtn = style({
+  opacity: 0,
+  transition: 'opacity 0.15s',
+  flexShrink: 0,
+  color: cssVar('iconColor'),
+  selectors: {
+    [`${pageItem}:hover &`]: {
+      opacity: 1,
+    },
+  },
+});
+
+// share day popover
+export const shareDayBtn = style({
+  flexShrink: 0,
+  color: cssVar('iconColor'),
+});
+export const shareDayMenuContent = style({
+  width: 300,
+  padding: 16,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 12,
+});
+export const shareDayTitle = style({
+  fontSize: cssVar('fontSm'),
+  fontWeight: 600,
+  color: cssVar('textPrimaryColor'),
+});
+export const shareDaySearchArea = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 4,
+  padding: '6px 10px',
+  border: `1px solid ${cssVarV2('input/border/default')}`,
+  borderRadius: 8,
+  minHeight: 36,
+  alignItems: 'center',
+  selectors: {
+    '&:focus-within': {
+      borderColor: cssVar('primaryColor'),
+    },
+  },
+});
+export const shareDayInput = style({
+  flex: 1,
+  minWidth: 80,
+  border: 'none',
+  outline: 'none',
+  fontSize: cssVar('fontSm'),
+  color: cssVar('textPrimaryColor'),
+  background: 'transparent',
+  selectors: {
+    '&::placeholder': {
+      color: cssVar('textSecondaryColor'),
+    },
+  },
+});
+export const shareDayChip = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  padding: '2px 6px 2px 8px',
+  borderRadius: 100,
+  background: cssVarV2('layer/background/hoverOverlay'),
+  fontSize: cssVar('fontXs'),
+  color: cssVar('textPrimaryColor'),
+  whiteSpace: 'nowrap',
+});
+export const shareDayChipRemove = style({
+  cursor: 'pointer',
+  fontSize: 12,
+  lineHeight: 1,
+  color: cssVar('textSecondaryColor'),
+  selectors: {
+    '&:hover': {
+      color: cssVar('textPrimaryColor'),
+    },
+  },
+});
+export const shareDayResults = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  maxHeight: 180,
+  overflowY: 'auto',
+});
+export const shareDayResult = style({
+  display: 'flex',
+  flexDirection: 'column',
+  padding: '6px 10px',
+  borderRadius: 6,
+  cursor: 'pointer',
+  textAlign: 'left',
+  background: 'transparent',
+  selectors: {
+    '&:hover': {
+      background: cssVar('hoverColor'),
+    },
+  },
+});
+export const shareDayResultName = style({
+  fontSize: cssVar('fontSm'),
+  color: cssVar('textPrimaryColor'),
+  fontWeight: 500,
+});
+export const shareDayResultEmail = style({
+  fontSize: cssVar('fontXs'),
+  color: cssVar('textSecondaryColor'),
+});
+export const shareDayRoleRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  fontSize: cssVar('fontSm'),
+  color: cssVar('textSecondaryColor'),
+});
+export const shareDayRoleBtn = style({
+  fontSize: cssVar('fontSm'),
+  color: cssVar('textPrimaryColor'),
+  cursor: 'pointer',
+  padding: '2px 8px',
+  borderRadius: 4,
+  background: 'transparent',
+  selectors: {
+    '&:hover': {
+      background: cssVar('hoverColor'),
+    },
+  },
+});
+export const shareDaySubmit = style({
+  width: '100%',
+  padding: '8px',
+  borderRadius: 8,
+  fontSize: cssVar('fontSm'),
+  fontWeight: 500,
+  cursor: 'pointer',
+  background: cssVar('primaryColor'),
+  color: 'white',
+  selectors: {
+    '&:disabled': {
+      opacity: 0.5,
+      cursor: 'not-allowed',
+    },
+    '&:not(:disabled):hover': {
+      opacity: 0.9,
+    },
+  },
+});
+
 export const pageItemLabel = style({
   width: 0,
   flex: 1,
@@ -574,7 +724,11 @@ export const fullCalendarAgendaItem = style({
   color: cssVarV2.text.primary,
   background: cssVarV2.layer.background.hoverOverlay,
   textAlign: 'left',
+  cursor: 'pointer',
   selectors: {
+    '&:hover': {
+      background: cssVarV2.layer.background.secondary,
+    },
     '&[data-type="journal"]': {
       borderLeftColor: cssVarV2.calendar.blue,
       fontWeight: 500,
