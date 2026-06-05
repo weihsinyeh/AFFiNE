@@ -9,8 +9,8 @@ import {
   Scrollable,
   useConfirmModal,
 } from '@affine/component';
-import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { Guard } from '@affine/core/components/guard';
+import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import { MoveToTrash } from '@affine/core/components/page-list';
 import { WorkspaceServerService } from '@affine/core/modules/cloud';
 import {
@@ -68,9 +68,9 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CalendarEvents } from './calendar-events';
+import * as styles from './journal.css';
 import { JournalTemplateOnboarding } from './template-onboarding';
 import { JournalTemplateSetting } from './template-setting';
-import * as styles from './journal.css';
 
 /**
  * @internal
@@ -176,7 +176,7 @@ const DocShareMenuTrigger = ({ docId }: { docId: string }) => {
         }
       >
         <IconButton
-          size="small"
+          size={16}
           className={styles.pageItemShareBtn}
           aria-label="Share this doc"
         >
@@ -367,7 +367,7 @@ const ShareDayDialog = ({
       }
     >
       <IconButton
-        size="small"
+        size={16}
         className={styles.shareDayBtn}
         aria-label="Share this day's notes"
       >
@@ -485,6 +485,105 @@ const JournalCalendarDateCell = ({
         </span>
       ) : null}
     </button>
+  );
+};
+
+// ── Meeting list dropdown with inline rename ──────────────────────────────
+
+const MeetingDropdown = ({ docs }: { docs: DocRecord[] }) => {
+  const workbench = useService(WorkbenchService).workbench;
+  const [open, setOpen] = useState(false);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+
+  const handleStartRename = useCallback((doc: DocRecord) => {
+    setRenamingId(doc.id);
+    setDraft(doc.meta$.value.title || '');
+  }, []);
+
+  const handleCommitRename = useCallback(
+    (doc: DocRecord) => {
+      const trimmed = draft.trim();
+      if (trimmed) doc.setMeta({ title: trimmed });
+      setRenamingId(null);
+    },
+    [draft]
+  );
+
+  if (docs.length === 1) {
+    return (
+      <span
+        className={styles.fullCalendarAgendaItem}
+        data-type="meeting"
+        onClick={e => {
+          e.stopPropagation();
+          workbench.openDoc(docs[0].id, { at: 'active' });
+        }}
+      >
+        Meeting
+      </span>
+    );
+  }
+
+  return (
+    <Menu
+      rootOptions={{ open, onOpenChange: setOpen }}
+      items={
+        <div className={styles.meetingDropdownContent}>
+          {docs.map(doc => {
+            const title = doc.meta$.value.title || 'Untitled';
+            if (renamingId === doc.id) {
+              return (
+                <div
+                  key={doc.id}
+                  className={styles.meetingRenameRow}
+                  onPointerDown={e => e.stopPropagation()}
+                >
+                  <input
+                    autoFocus
+                    className={styles.meetingRenameInput}
+                    value={draft}
+                    onChange={e => setDraft(e.target.value)}
+                    onBlur={() => handleCommitRename(doc)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') handleCommitRename(doc);
+                      if (e.key === 'Escape') {
+                        e.stopPropagation(); // keep dropdown open
+                        setRenamingId(null);
+                      }
+                    }}
+                  />
+                </div>
+              );
+            }
+            return (
+              <div key={doc.id} className={styles.meetingRow}>
+                <button
+                  className={styles.meetingNavBtn}
+                  onClick={() => {
+                    workbench.openDoc(doc.id, { at: 'active' });
+                    setOpen(false);
+                  }}
+                >
+                  {title}
+                </button>
+                <IconButton size={16} onClick={() => handleStartRename(doc)}>
+                  <EditIcon />
+                </IconButton>
+              </div>
+            );
+          })}
+        </div>
+      }
+    >
+      <span
+        className={styles.fullCalendarAgendaItem}
+        data-type="meeting"
+        onClick={e => e.stopPropagation()}
+      >
+        {docs.length} Meetings
+      </span>
+    </Menu>
   );
 };
 
@@ -696,38 +795,7 @@ const FullCalendarDayCell = ({
             {todoDocs.length > 1 ? `${todoDocs.length} Todos` : 'Todo'}
           </span>
         ) : null}
-        {meetingDocs.length === 1 ? (
-          <span
-            className={styles.fullCalendarAgendaItem}
-            data-type="meeting"
-            onClick={e => {
-              e.stopPropagation();
-              workbench.openDoc(meetingDocs[0].id, { at: 'active' });
-            }}
-          >
-            Meeting
-          </span>
-        ) : meetingDocs.length > 1 ? (
-          <Menu
-            rootOptions={{ modal: false }}
-            items={meetingDocs.map(doc => (
-              <MenuItem
-                key={doc.id}
-                onSelect={() => workbench.openDoc(doc.id, { at: 'active' })}
-              >
-                {doc.meta$.value.title || 'Untitled'}
-              </MenuItem>
-            ))}
-          >
-            <span
-              className={styles.fullCalendarAgendaItem}
-              data-type="meeting"
-              onClick={e => e.stopPropagation()}
-            >
-              {meetingDocs.length} Meetings
-            </span>
-          </Menu>
-        ) : null}
+        {meetingDocs.length > 0 ? <MeetingDropdown docs={meetingDocs} /> : null}
         {visibleEvents.map(event => (
           <span
             key={event.id}

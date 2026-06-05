@@ -744,6 +744,58 @@ export const fullCalendarAgendaItem = style({
   },
 });
 
+export const meetingDropdownContent = style({
+  minWidth: 220,
+  padding: '4px 0',
+});
+
+export const meetingRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 2,
+  padding: '2px 4px',
+});
+
+export const meetingNavBtn = style({
+  flex: 1,
+  textAlign: 'left',
+  padding: '5px 8px',
+  borderRadius: 4,
+  fontSize: cssVar('fontSm'),
+  color: cssVar('textPrimaryColor'),
+  background: 'transparent',
+  cursor: 'pointer',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  selectors: {
+    '&:hover': {
+      background: cssVar('hoverColor'),
+    },
+  },
+});
+
+export const meetingRenameRow = style({
+  padding: '4px 12px',
+});
+
+export const meetingRenameInput = style({
+  width: '100%',
+  boxSizing: 'border-box',
+  border: `1px solid ${cssVar('borderColor')}`,
+  borderRadius: 4,
+  padding: '3px 8px',
+  fontSize: cssVar('fontSm'),
+  color: cssVar('textPrimaryColor'),
+  background: 'transparent',
+  outline: 'none',
+  selectors: {
+    '&:focus': {
+      borderColor: cssVar('primaryColor'),
+    },
+  },
+});
+
 export const fullCalendarAgendaMore = style({
   fontSize: 11,
   lineHeight: '16px',
