@@ -10,6 +10,8 @@ import {
   ArrowRightSmallIcon,
   CloseIcon,
   DateTimeIcon,
+  ExpandCloseIcon,
+  ExpandFullIcon,
   IntegrationsIcon,
   LinkedPageIcon,
   PlusIcon,
@@ -106,6 +108,8 @@ export class CalendarViewUILogic extends DataViewUILogicBase<CalendarSingleView>
   });
 
   selectedEntryId: string | undefined;
+
+  isExpanded = false;
 
   interactionState: CalendarInteractionState | undefined;
 
@@ -225,6 +229,35 @@ export class CalendarViewUILogic extends DataViewUILogicBase<CalendarSingleView>
     this.currentMonth = startOfDay(Date.now());
     this.ui?.requestUpdate();
     this.loadExternalEntries();
+  }
+
+  setExpanded(expanded: boolean) {
+    if (this.isExpanded === expanded) {
+      return;
+    }
+    this.isExpanded = expanded;
+    this.ui?.requestUpdate();
+    if (expanded) {
+      this.loadExternalEntries();
+    }
+  }
+
+  toggleExpanded() {
+    this.setExpanded(!this.isExpanded);
+  }
+
+  handleExpandedOverlayClick(event: MouseEvent) {
+    if (event.target === event.currentTarget) {
+      this.setExpanded(false);
+    }
+  }
+
+  handleExpandedKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      this.setExpanded(false);
+    }
   }
 
   isCurrentMonth() {
@@ -941,7 +974,7 @@ export class CalendarViewUI extends DataViewUIBase<CalendarViewUILogic> {
     </div>`;
   }
 
-  private renderCalendar(skeleton = false) {
+  private renderCalendar(skeleton = false, expanded = false) {
     const entries = skeleton ? [] : this.logic.view.entries$.value;
     const layout = createCalendarMonthLayout({
       month: this.logic.currentMonth,
@@ -984,6 +1017,18 @@ export class CalendarViewUI extends DataViewUIBase<CalendarViewUILogic> {
               @click=${() => this.logic.moveMonth(1)}
             >
               ${ArrowRightSmallIcon()}
+            </button>
+            <button
+              class="calendar-icon-button calendar-expand-button"
+              aria-label=${expanded
+                ? 'Exit full page calendar'
+                : 'Open full page calendar'}
+              title=${expanded
+                ? 'Exit full page calendar'
+                : 'Open full page calendar'}
+              @click=${() => this.logic.toggleExpanded()}
+            >
+              ${expanded ? ExpandCloseIcon() : ExpandFullIcon()}
             </button>
           </div>
         </div>
@@ -1103,6 +1148,30 @@ export class CalendarViewUI extends DataViewUIBase<CalendarViewUILogic> {
             </div>`
           : nothing}
       </div>
+      ${!setup && this.logic.isExpanded
+        ? html`<div
+            ${ref(element => {
+              if (element instanceof HTMLElement) {
+                requestAnimationFrame(() => element.focus());
+              }
+            })}
+            class="calendar-expanded-overlay"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Full page calendar"
+            tabindex="-1"
+            @click=${(event: MouseEvent) =>
+              this.logic.handleExpandedOverlayClick(event)}
+            @keydown=${(event: KeyboardEvent) =>
+              this.logic.handleExpandedKeydown(event)}
+          >
+            <div class="calendar-expanded-panel">
+              <div class="calendar-scroll" @wheel="${this.logic.onWheel}">
+                ${this.renderCalendar(false, true)}
+              </div>
+            </div>
+          </div>`
+        : nothing}
     `;
   }
 }

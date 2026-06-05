@@ -25,16 +25,29 @@ import {
   WorkbenchService,
 } from '@affine/core/modules/workbench';
 import { useI18n } from '@affine/i18n';
-import { CalendarXmarkIcon, EditIcon } from '@blocksuite/icons/rc';
+import {
+  ArrowLeftSmallIcon,
+  ArrowRightSmallIcon,
+  CalendarXmarkIcon,
+  EditIcon,
+  ExpandCloseIcon,
+  ExpandFullIcon,
+} from '@blocksuite/icons/rc';
 import {
   useLiveData,
   useService,
   useServiceOptional,
 } from '@toeverything/infra';
+import { cssVarV2 } from '@toeverything/theme/v2';
 import { assignInlineVars } from '@vanilla-extract/dynamic';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
-import type { HTMLAttributes, PropsWithChildren, ReactNode } from 'react';
+import type {
+  HTMLAttributes,
+  MouseEvent,
+  PropsWithChildren,
+  ReactNode,
+} from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CalendarEvents } from './calendar-events';
@@ -109,6 +122,296 @@ interface JournalBlockProps {
 type DateDotType = 'journal' | 'event' | 'activity';
 
 const mobile = environment.isMobile;
+
+interface JournalCalendarDateCellProps {
+  cell: DateCell;
+  dateKey: string;
+  dotTypes: DateDotType[];
+  expanded: boolean;
+  hasJournal: boolean;
+  isJournal: boolean;
+}
+
+const JournalCalendarDateCell = ({
+  cell,
+  dateKey,
+  dotTypes,
+  expanded,
+  hasJournal,
+  isJournal,
+}: JournalCalendarDateCellProps) => {
+  const t = useI18n();
+  const calendar = useService(IntegrationService).calendar;
+  const journalService = useService(JournalService);
+  const events = useLiveData(
+    useMemo(() => calendar.eventsByDate$(cell.date), [calendar, cell.date])
+  );
+  const journals = useLiveData(
+    useMemo(
+      () => journalService.journalsByDate$(dateKey),
+      [dateKey, journalService]
+    )
+  );
+  const agendaLimit = hasJournal ? 3 : 4;
+  const visibleEvents = events.slice(0, agendaLimit);
+  const hiddenCount = events.length - visibleEvents.length;
+
+  return (
+    <button
+      className={styles.journalDateCell}
+      data-is-date-cell
+      tabIndex={cell.focused ? 0 : -1}
+      data-is-today={cell.isToday}
+      data-not-current-month={cell.notCurrentMonth}
+      data-selected={cell.selected}
+      data-is-journal={isJournal}
+      data-has-journal={hasJournal}
+      data-expanded={expanded}
+      data-mobile={mobile}
+    >
+      <span className={styles.journalDateCellLabel}>{cell.label}</span>
+      {expanded ? (
+        <span className={styles.journalDateCellAgenda}>
+          {journals.length ? (
+            <span
+              className={styles.journalDateCellAgendaItem}
+              data-type="journal"
+            >
+              {journals.length > 1 ? `${journals.length} Journals` : 'Journal'}
+            </span>
+          ) : null}
+          {visibleEvents.map(event => (
+            <span
+              key={event.id}
+              className={styles.journalDateCellAgendaItem}
+              data-type="event"
+              style={{
+                borderLeftColor: event.calendarColor || cssVarV2.button.primary,
+              }}
+            >
+              {event.title || t['Untitled']()}
+            </span>
+          ))}
+          {hiddenCount > 0 ? (
+            <span
+              className={styles.journalDateCellAgendaMore}
+            >{`+${hiddenCount} more`}</span>
+          ) : null}
+        </span>
+      ) : !cell.selected && dotTypes.length ? (
+        <span className={styles.journalDateCellDotContainer}>
+          {dotTypes.map(dotType => (
+            <span
+              key={dotType}
+              className={clsx(
+                styles.journalDateCellDot,
+                styles.journalDateCellDotType[dotType]
+              )}
+            />
+          ))}
+        </span>
+      ) : null}
+    </button>
+  );
+};
+
+// ── Full-page Google-Calendar-style monthly view ─────────────────────────
+
+interface FullCalendarDayCellProps {
+  day: dayjs.Dayjs;
+  isCurrentMonth: boolean;
+  isSelected: boolean;
+  onSelect: (dateKey: string) => void;
+}
+
+const FullCalendarDayCell = ({
+  day,
+  isCurrentMonth,
+  isSelected,
+  onSelect,
+}: FullCalendarDayCellProps) => {
+  const t = useI18n();
+  const calendar = useService(IntegrationService).calendar;
+  const journalService = useService(JournalService);
+  const dateKey = day.format('YYYY-MM-DD');
+  const isToday = day.isSame(dayjs(), 'day');
+
+  const events = useLiveData(
+    useMemo(() => calendar.eventsByDate$(day), [calendar, day])
+  );
+  const journals = useLiveData(
+    useMemo(
+      () => journalService.journalsByDate$(dateKey),
+      [dateKey, journalService]
+    )
+  );
+
+  const hasJournal = journals.length > 0;
+  const maxEvents = hasJournal ? 3 : 4;
+  const visibleEvents = events.slice(0, maxEvents);
+  const hiddenCount = events.length - visibleEvents.length;
+
+  return (
+    <button
+      className={styles.fullCalendarDayCell}
+      data-today={isToday}
+      data-outside={!isCurrentMonth}
+      data-selected={isSelected}
+      tabIndex={0}
+      onClick={() => onSelect(dateKey)}
+    >
+      <span className={styles.fullCalendarDayNumber} data-today={isToday}>
+        {day.date()}
+      </span>
+      <div className={styles.fullCalendarDayAgenda}>
+        {hasJournal ? (
+          <span className={styles.fullCalendarAgendaItem} data-type="journal">
+            {journals.length > 1 ? `${journals.length} Journals` : 'Journal'}
+          </span>
+        ) : null}
+        {visibleEvents.map(event => (
+          <span
+            key={event.id}
+            className={styles.fullCalendarAgendaItem}
+            data-type="event"
+            style={{
+              borderLeftColor: event.calendarColor || cssVarV2.button.primary,
+            }}
+          >
+            {event.allDay ? null : `${event.startAt.format('HH:mm')} `}
+            {event.title || t['Untitled']()}
+          </span>
+        ))}
+        {hiddenCount > 0 ? (
+          <span className={styles.fullCalendarAgendaMore}>
+            +{hiddenCount} more
+          </span>
+        ) : null}
+      </div>
+    </button>
+  );
+};
+
+interface FullMonthCalendarViewProps {
+  selectedDate: dayjs.Dayjs;
+  cursor: dayjs.Dayjs;
+  onCursorChange: (d: dayjs.Dayjs) => void;
+  onDateSelect: (dateKey: string) => void;
+  onClose: () => void;
+}
+
+const FullMonthCalendarView = ({
+  selectedDate,
+  cursor,
+  onCursorChange,
+  onDateSelect,
+  onClose,
+}: FullMonthCalendarViewProps) => {
+  const t = useI18n();
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const monthNamesStr: string =
+    t['com.affine.calendar-date-picker.month-names']();
+  const weekDaysStr: string = t['com.affine.calendar-date-picker.week-days']();
+  const todayLabel: string = t['com.affine.calendar-date-picker.today']();
+  const monthNames = useMemo(
+    () => monthNamesStr.split(/[,،]/),
+    [monthNamesStr]
+  );
+  const weekDays = useMemo(() => weekDaysStr.split(/[,،]/), [weekDaysStr]);
+
+  useEffect(() => {
+    overlayRef.current?.focus();
+  }, []);
+
+  const weeks = useMemo<dayjs.Dayjs[][]>(() => {
+    const start = cursor.startOf('month').startOf('week');
+    const end = cursor.endOf('month').endOf('week');
+    const result: dayjs.Dayjs[][] = [];
+    let cur = start;
+    while (cur.isBefore(end) || cur.isSame(end, 'day')) {
+      const week: dayjs.Dayjs[] = [];
+      for (let i = 0; i < 7; i++) {
+        week.push(cur);
+        cur = cur.add(1, 'day');
+      }
+      result.push(week);
+    }
+    return result;
+  }, [cursor]);
+
+  const isCurrentMonth = cursor.isSame(dayjs(), 'month');
+  const titleStr = `${monthNames[cursor.month()]} ${cursor.year()}`;
+
+  return (
+    <div
+      ref={overlayRef}
+      className={styles.fullCalendarOverlay}
+      role="dialog"
+      aria-modal="true"
+      aria-label={titleStr}
+      tabIndex={-1}
+      onKeyDown={e => {
+        if (e.key === 'Escape') onClose();
+        if (e.key === 'ArrowLeft') onCursorChange(cursor.subtract(1, 'month'));
+        if (e.key === 'ArrowRight') onCursorChange(cursor.add(1, 'month'));
+      }}
+    >
+      <div className={styles.fullCalendarHeader}>
+        <div className={styles.fullCalendarTitle}>{titleStr}</div>
+        <div className={styles.fullCalendarHeaderActions}>
+          {!isCurrentMonth ? (
+            <button
+              className={styles.fullCalendarTodayBtn}
+              onClick={() => onCursorChange(dayjs())}
+            >
+              {todayLabel}
+            </button>
+          ) : null}
+          <IconButton
+            aria-label="Previous month"
+            onClick={() => onCursorChange(cursor.subtract(1, 'month'))}
+          >
+            <ArrowLeftSmallIcon />
+          </IconButton>
+          <IconButton
+            aria-label="Next month"
+            onClick={() => onCursorChange(cursor.add(1, 'month'))}
+          >
+            <ArrowRightSmallIcon />
+          </IconButton>
+          <IconButton aria-label="Close full page calendar" onClick={onClose}>
+            <ExpandCloseIcon />
+          </IconButton>
+        </div>
+      </div>
+
+      <div className={styles.fullCalendarWeekdayRow}>
+        {weekDays.map((label, i) => (
+          <div key={i} className={styles.fullCalendarWeekdayHeader}>
+            {label}
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.fullCalendarBody}>
+        {weeks.map((week, wi) => (
+          <div key={wi} className={styles.fullCalendarWeekRow}>
+            {week.map(day => (
+              <FullCalendarDayCell
+                key={day.format('YYYY-MM-DD')}
+                day={day}
+                isCurrentMonth={day.isSame(cursor, 'month')}
+                isSelected={day.isSame(selectedDate, 'day')}
+                onSelect={onDateSelect}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 export const EditorJournalPanel = () => {
   const t = useI18n();
   const doc = useServiceOptional(DocService)?.doc;
@@ -134,6 +437,7 @@ export const EditorJournalPanel = () => {
     return journalDate ?? routeDate ?? dayjs();
   });
   const [calendarCursor, setCalendarCursor] = useState(selectedDate);
+  const [calendarExpanded, setCalendarExpanded] = useState(false);
   const calendarCursorMonthKey = useMemo(() => {
     return calendarCursor.format('YYYY-MM');
   }, [calendarCursor]);
@@ -240,40 +544,26 @@ export const EditorJournalPanel = () => {
     [allJournalDates, docActivityDates, eventDates]
   );
 
-  const customDayRenderer = useCallback(
-    (cell: DateCell) => {
+  const renderDateCell = useCallback(
+    (cell: DateCell, expanded: boolean) => {
       const dateKey = cell.date.format('YYYY-MM-DD');
-      const dotTypes = getDotType(dateKey);
       return (
-        <button
-          className={styles.journalDateCell}
-          data-is-date-cell
-          tabIndex={cell.focused ? 0 : -1}
-          data-is-today={cell.isToday}
-          data-not-current-month={cell.notCurrentMonth}
-          data-selected={cell.selected}
-          data-is-journal={isJournal}
-          data-has-journal={allJournalDates.has(dateKey)}
-          data-mobile={mobile}
-        >
-          {cell.label}
-          {!cell.selected && dotTypes.length ? (
-            <div className={styles.journalDateCellDotContainer}>
-              {dotTypes.map(dotType => (
-                <div
-                  key={dotType}
-                  className={clsx(
-                    styles.journalDateCellDot,
-                    styles.journalDateCellDotType[dotType]
-                  )}
-                />
-              ))}
-            </div>
-          ) : null}
-        </button>
+        <JournalCalendarDateCell
+          cell={cell}
+          dateKey={dateKey}
+          dotTypes={getDotType(dateKey)}
+          expanded={expanded}
+          hasJournal={allJournalDates.has(dateKey)}
+          isJournal={isJournal}
+        />
       );
     },
     [allJournalDates, getDotType, isJournal]
+  );
+
+  const customDayRenderer = useCallback(
+    (cell: DateCell) => renderDateCell(cell, false),
+    [renderDateCell]
   );
 
   return (
@@ -283,6 +573,15 @@ export const EditorJournalPanel = () => {
       data-testid="sidebar-journal-panel"
     >
       <div data-mobile={mobile} className={styles.calendar}>
+        <div className={styles.calendarActions}>
+          <IconButton
+            className={styles.calendarExpandButton}
+            aria-label="Open full page calendar"
+            onClick={() => setCalendarExpanded(true)}
+          >
+            <ExpandFullIcon />
+          </IconButton>
+        </div>
         <DatePicker
           weekDays={t['com.affine.calendar-date-picker.week-days']()}
           monthNames={t['com.affine.calendar-date-picker.month-names']()}
@@ -294,6 +593,15 @@ export const EditorJournalPanel = () => {
           cellSize={34}
         />
       </div>
+      {calendarExpanded ? (
+        <FullMonthCalendarView
+          selectedDate={selectedDate}
+          cursor={calendarCursor}
+          onCursorChange={setCalendarCursor}
+          onDateSelect={onDateSelect}
+          onClose={() => setCalendarExpanded(false)}
+        />
+      ) : null}
       <JournalTemplateOnboarding />
       <JournalConflictBlock date={selectedDate} />
       <CalendarEvents date={selectedDate} />
@@ -500,7 +808,7 @@ const ConflictList = ({
                       {canEdit => (
                         <MenuItem
                           prefixIcon={<CalendarXmarkIcon />}
-                          onClick={e => {
+                          onClick={(e: MouseEvent) => {
                             e.stopPropagation();
                             handleRemoveJournalMark(docRecord.id);
                           }}

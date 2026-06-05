@@ -35,6 +35,7 @@ const interactive = style({
   },
 });
 export const calendar = style({
+  position: 'relative',
   padding: '16px',
   paddingBottom: 0,
   marginBottom: 10,
@@ -45,6 +46,52 @@ export const calendar = style({
     },
   },
 });
+export const calendarActions = style({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  height: 24,
+  marginBottom: 4,
+});
+
+export const calendarExpandButton = style({
+  color: cssVar('iconColor'),
+});
+
+export const calendarExpandedOverlay = style({
+  position: 'fixed',
+  inset: 0,
+  zIndex: 1000,
+  display: 'flex',
+  flexDirection: 'column',
+  width: '100vw',
+  height: '100vh',
+  padding: '18px 22px 22px',
+  boxSizing: 'border-box',
+  background: cssVarV2('layer/background/primary'),
+});
+
+export const calendarExpandedHeader = style({
+  flex: '0 0 auto',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  height: 40,
+  marginBottom: 12,
+});
+
+export const calendarExpandedTitle = style({
+  fontSize: 20,
+  fontWeight: 600,
+  lineHeight: '28px',
+  color: cssVarV2.text.primary,
+});
+
+export const calendarExpandedBody = style({
+  flex: '1 1 auto',
+  minHeight: 0,
+  overflow: 'auto',
+});
+
 export const journalPanel = style({
   width: '100%',
   height: '100%',
@@ -241,9 +288,79 @@ export const journalDateCell = style([
         fontSize: 15,
         fontWeight: 400,
       },
+      '&[data-expanded=true]': {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        justifyContent: 'flex-start',
+        gap: 6,
+        padding: 8,
+        borderRadius: 0,
+        overflow: 'hidden',
+        fontSize: 13,
+        lineHeight: '18px',
+        textAlign: 'left',
+      },
+      '&[data-expanded=true][data-selected=true]': {
+        backgroundColor: 'transparent',
+        color: cssVarV2.text.primary,
+        boxShadow: `inset 0 0 0 1px ${cssVar('brandColor')}`,
+      },
+      '&[data-expanded=true][data-is-today=true]': {
+        color: cssVar('brandColor'),
+      },
     },
   },
 ]);
+export const journalDateCellLabel = style({
+  flex: '0 0 auto',
+});
+
+export const journalDateCellAgenda = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 3,
+  width: '100%',
+  minHeight: 0,
+  overflow: 'hidden',
+});
+
+export const journalDateCellAgendaItem = style({
+  display: 'block',
+  width: '100%',
+  minHeight: 18,
+  padding: '1px 5px',
+  borderLeft: '3px solid transparent',
+  borderRadius: 4,
+  boxSizing: 'border-box',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: 12,
+  lineHeight: '16px',
+  color: cssVarV2.text.primary,
+  background: cssVarV2.layer.background.hoverOverlay,
+  textAlign: 'left',
+  selectors: {
+    '&[data-type="journal"]': {
+      borderLeftColor: cssVarV2.calendar.blue,
+      fontWeight: 500,
+    },
+  },
+});
+
+export const journalDateCellAgendaMore = style({
+  display: 'block',
+  width: '100%',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: 12,
+  lineHeight: '16px',
+  color: cssVarV2.text.secondary,
+  textAlign: 'left',
+});
+
 export const journalDateCellDotContainer = style({
   display: 'flex',
   gap: 4,
@@ -265,4 +382,183 @@ export const journalDateCellDotType = styleVariants({
   activity: {
     backgroundColor: cssVarV2.calendar.red,
   },
+});
+
+// ── Full-page Google-Calendar-like monthly view ────────────────────────────
+
+export const fullCalendarOverlay = style({
+  position: 'fixed',
+  inset: 0,
+  zIndex: 1000,
+  display: 'flex',
+  flexDirection: 'column',
+  background: cssVarV2('layer/background/primary'),
+  padding: '18px 24px 0',
+  boxSizing: 'border-box',
+  outline: 'none',
+});
+
+export const fullCalendarHeader = style({
+  flex: '0 0 auto',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  paddingBottom: 12,
+});
+
+export const fullCalendarTitle = style({
+  fontSize: 22,
+  fontWeight: 600,
+  lineHeight: '28px',
+  color: cssVarV2.text.primary,
+});
+
+export const fullCalendarHeaderActions = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+});
+
+export const fullCalendarTodayBtn = style({
+  height: 28,
+  padding: '0 12px',
+  borderRadius: 6,
+  border: `1px solid ${cssVar('borderColor')}`,
+  background: 'transparent',
+  color: cssVar('textPrimaryColor'),
+  fontSize: 13,
+  fontWeight: 500,
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': {
+      background: cssVar('hoverColor'),
+    },
+  },
+});
+
+export const fullCalendarWeekdayRow = style({
+  flex: '0 0 auto',
+  display: 'grid',
+  gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+  borderTop: `1px solid ${cssVar('borderColor')}`,
+  borderLeft: `1px solid ${cssVar('borderColor')}`,
+});
+
+export const fullCalendarWeekdayHeader = style({
+  padding: '6px 8px',
+  fontSize: 11,
+  fontWeight: 600,
+  color: cssVar('textSecondaryColor'),
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+  borderRight: `1px solid ${cssVar('borderColor')}`,
+});
+
+export const fullCalendarBody = style({
+  flex: '1 1 auto',
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 0,
+  overflow: 'auto',
+  borderLeft: `1px solid ${cssVar('borderColor')}`,
+});
+
+export const fullCalendarWeekRow = style({
+  flex: '1 1 0',
+  display: 'grid',
+  gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
+  minHeight: 100,
+  borderBottom: `1px solid ${cssVar('borderColor')}`,
+});
+
+export const fullCalendarDayCell = style([
+  interactive,
+  {
+    display: 'flex',
+    flexDirection: 'column',
+    padding: '6px 8px',
+    borderRight: `1px solid ${cssVar('borderColor')}`,
+    overflow: 'hidden',
+    cursor: 'pointer',
+    textAlign: 'left',
+    alignItems: 'stretch',
+    borderRadius: 0,
+    selectors: {
+      '&[data-outside="true"]': {
+        background: `color-mix(in srgb, ${cssVar('backgroundSecondaryColor')} 60%, transparent)`,
+      },
+      '&[data-today="true"]': {
+        background: `color-mix(in srgb, ${cssVar('brandColor')} 6%, ${cssVarV2('layer/background/primary')})`,
+      },
+      '&[data-selected="true"]': {
+        boxShadow: `inset 0 0 0 1.5px ${cssVar('brandColor')}`,
+      },
+      '&[data-outside="true"][data-selected="true"]': {
+        boxShadow: `inset 0 0 0 1.5px ${cssVar('brandColor')}`,
+      },
+    },
+  },
+]);
+
+export const fullCalendarDayNumber = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 24,
+  height: 24,
+  borderRadius: '50%',
+  fontSize: 13,
+  fontWeight: 400,
+  color: cssVar('textPrimaryColor'),
+  marginBottom: 4,
+  flex: '0 0 auto',
+  selectors: {
+    '[data-outside="true"] &': {
+      color: `color-mix(in srgb, ${cssVar('textSecondaryColor')} 50%, transparent)`,
+    },
+    '&[data-today="true"]': {
+      background: cssVar('brandColor'),
+      color: cssVar('pureWhite'),
+      fontWeight: 600,
+    },
+  },
+});
+
+export const fullCalendarDayAgenda = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  flex: '1 1 auto',
+  minHeight: 0,
+  overflow: 'hidden',
+});
+
+export const fullCalendarAgendaItem = style({
+  display: 'block',
+  width: '100%',
+  padding: '2px 5px',
+  borderLeft: '3px solid transparent',
+  borderRadius: 4,
+  boxSizing: 'border-box',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: 12,
+  lineHeight: '16px',
+  color: cssVarV2.text.primary,
+  background: cssVarV2.layer.background.hoverOverlay,
+  textAlign: 'left',
+  selectors: {
+    '&[data-type="journal"]': {
+      borderLeftColor: cssVarV2.calendar.blue,
+      fontWeight: 500,
+    },
+  },
+});
+
+export const fullCalendarAgendaMore = style({
+  fontSize: 11,
+  lineHeight: '16px',
+  color: cssVar('textSecondaryColor'),
+  padding: '1px 4px',
 });

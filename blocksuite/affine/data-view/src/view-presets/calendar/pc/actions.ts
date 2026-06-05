@@ -85,3 +85,68 @@ export const openCalendarEntry = (
     },
   });
 };
+
+const dayFormatter = new Intl.DateTimeFormat(undefined, {
+  weekday: 'long',
+  year: 'numeric',
+  month: 'long',
+  day: 'numeric',
+});
+
+export const openCalendarDayView = (
+  root: DataViewRootUILogic,
+  view: CalendarSingleView,
+  dayDate: number,
+  entries: CalendarEntry[],
+  target: HTMLElement
+) => {
+  const dayEndDate = dayDate + 24 * 60 * 60 * 1000;
+  const dayEntries = entries.filter(entry => {
+    // Check if event starts on this day
+    if (entry.startAt >= dayDate && entry.startAt < dayEndDate) {
+      return true;
+    }
+    // Check if event spans across this day (starts before and ends after)
+    if (entry.endAt && entry.startAt < dayDate && entry.endAt > dayDate) {
+      return true;
+    }
+    return false;
+  });
+
+  popMenu(popupTargetFromElement(target), {
+    options: {
+      items:
+        dayEntries.length === 0
+          ? [
+              () => html`
+                <div class="calendar-day-view-empty">
+                  <span>No items on this day</span>
+                </div>
+              `,
+            ]
+          : dayEntries.map(entry => () => {
+              const label = entry.kind === 'row' ? entry.title : entry.title;
+              const timeStr =
+                entry.kind === 'row' ? '' : ` • ${formatEntryTime(entry)}`;
+
+              return html`
+                <div
+                  class="calendar-day-view-item ${entry.kind}"
+                  @click=${() => {
+                    if (entry.kind === 'row') {
+                      root.openDetailPanel({
+                        view,
+                        rowId: entry.rowId,
+                      });
+                    }
+                  }}
+                >
+                  <span class="calendar-day-view-item-title"
+                    >${label}${timeStr}</span
+                  >
+                </div>
+              `;
+            }),
+    },
+  });
+};
