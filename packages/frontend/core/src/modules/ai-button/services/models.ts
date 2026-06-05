@@ -21,6 +21,14 @@ export const GEMINI_JOURNAL_MODEL_STORAGE_KEY = 'GeminiJournalModelId';
 
 export const DEFAULT_JOURNAL_MODEL_ID = 'gemini-2.5-flash';
 
+/**
+ * The Gemini model used by in-doc "/ai" actions (Ask AI, summarize,
+ * continue writing, ...), configurable in Settings -> General -> API Key.
+ */
+export const GEMINI_DOC_AI_MODEL_STORAGE_KEY = 'GeminiDocAiModelId';
+
+export const DEFAULT_DOC_AI_MODEL_ID = 'gemini-2.5-flash';
+
 export interface AIModel {
   name: string;
   id: string;

@@ -23,6 +23,13 @@ import {
   CopilotClient,
   type CopilotClient as CopilotClientType,
 } from './copilot-client';
+import {
+  buildGeminiActionPrompt,
+  getDocAiGeminiModelId,
+  getStoredGeminiApiKey,
+  isGeminiDirectModel,
+  streamGeminiChat,
+} from './gemini-direct';
 import { textToText, toImage } from './message-transport';
 
 type CreateSessionOptions = BlockSuitePresets.AICreateSessionOptions;
@@ -353,6 +360,17 @@ export class AIRequestService {
       definition.promptName,
       options
     ) as CreateSessionOptions['promptName'];
+
+    // Route text actions straight to the Gemini API when a user-provided
+    // key applies (Settings -> General -> API Key): an explicitly selected
+    // gemini-* model, or — for in-doc /ai actions without an explicit
+    // model — the configured "doc /ai" Gemini model. No backend session
+    // or message is created in this path.
+    const geminiStream = this.tryExecuteViaGemini(id, definition, options);
+    if (geminiStream) {
+      return this.wrapTextStream(geminiStream, id, options);
+    }
+
     const sessionId = await this.createSession({
       promptName,
       ...options,
@@ -381,6 +399,45 @@ export class AIRequestService {
         ? toImage(transportOptions)
         : textToText(transportOptions);
     return this.wrapTextStream(stream as AsyncIterable<string>, id, options);
+  }
+
+  private tryExecuteViaGemini(
+    id: AIActionId,
+    definition: ReturnType<typeof getActionDefinition>,
+    options: AIActionOptions
+  ): AsyncIterable<string> | null {
+    if (definition.responseType !== 'text' || options.retry) return null;
+
+    const apiKey = getStoredGeminiApiKey();
+    if (!apiKey) return null;
+
+    // an explicitly selected non-gemini model keeps the backend path
+    const modelId =
+      typeof options.modelId === 'string' && options.modelId
+        ? isGeminiDirectModel(options.modelId)
+          ? options.modelId
+          : null
+        : getDocAiGeminiModelId();
+    if (!modelId) return null;
+
+    const content = definition.buildContent?.(options) ?? options.input;
+    if (typeof content !== 'string' || !content.trim()) return null;
+
+    const promptName = resolveDefinitionValue(definition.promptName, options);
+    const prompt = buildGeminiActionPrompt(
+      id,
+      String(promptName ?? ''),
+      content,
+      definition.buildParams?.(options) as
+        | { language?: unknown; tone?: unknown }
+        | undefined
+    );
+    return streamGeminiChat({
+      apiKey,
+      modelId,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      signal: options.signal as AbortSignal | undefined,
+    });
   }
 }
 

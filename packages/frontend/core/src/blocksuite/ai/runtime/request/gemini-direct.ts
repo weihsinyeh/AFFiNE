@@ -1,3 +1,9 @@
+import {
+  DEFAULT_DOC_AI_MODEL_ID,
+  GEMINI_API_KEY_STORAGE_KEY,
+  GEMINI_DOC_AI_MODEL_STORAGE_KEY,
+} from '@affine/core/modules/ai-button/services/models';
+
 import type { AIChatMessage } from '../chat/state';
 
 /**
@@ -15,6 +21,62 @@ export function isGeminiDirectModel(
   modelId: string | null | undefined
 ): modelId is string {
   return !!modelId?.startsWith('gemini-');
+}
+
+/**
+ * Read a GlobalState-backed setting directly from localStorage. The AI
+ * request service lives outside the DI framework, so this mirrors the web
+ * `LocalStorageGlobalState` implementation (`global-state:` prefix with
+ * JSON-encoded values).
+ */
+function readGlobalStateSetting(key: string): string | undefined {
+  if (typeof localStorage === 'undefined') return undefined;
+  const json = localStorage.getItem(`global-state:${key}`);
+  if (!json) return undefined;
+  try {
+    const value = JSON.parse(json) as unknown;
+    return typeof value === 'string' && value ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function getStoredGeminiApiKey(): string | undefined {
+  return readGlobalStateSetting(GEMINI_API_KEY_STORAGE_KEY);
+}
+
+/** The Gemini model configured for in-doc /ai actions. */
+export function getDocAiGeminiModelId(): string {
+  return (
+    readGlobalStateSetting(GEMINI_DOC_AI_MODEL_STORAGE_KEY) ??
+    DEFAULT_DOC_AI_MODEL_ID
+  );
+}
+
+/**
+ * Compose a standalone prompt for an in-doc /ai action. The backend
+ * normally expands a prompt template identified by `promptName`; the
+ * direct Gemini path reproduces a compact instruction instead.
+ */
+export function buildGeminiActionPrompt(
+  actionId: string,
+  promptName: string,
+  content: string,
+  params?: { language?: unknown; tone?: unknown }
+): string {
+  if (actionId === 'chat') return content;
+  let task = promptName;
+  if (actionId === 'translate' && typeof params?.language === 'string') {
+    task = `Translate to ${params.language}`;
+  } else if (actionId === 'changeTone' && typeof params?.tone === 'string') {
+    task = `Change tone to ${params.tone}`;
+  }
+  return `You are a writing assistant inside a note-taking app.
+Task: ${task}.
+Apply the task to the content below and reply with the result only — no preamble or explanations. Format the result as Markdown. Unless the task says otherwise, reply in the same language as the content.
+
+Content:
+${content}`;
 }
 
 type GeminiContent = {

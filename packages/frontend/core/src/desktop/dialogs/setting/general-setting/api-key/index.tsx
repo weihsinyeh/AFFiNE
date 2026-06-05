@@ -12,8 +12,10 @@ import {
   SettingWrapper,
 } from '@affine/component/setting-components';
 import {
+  DEFAULT_DOC_AI_MODEL_ID,
   DEFAULT_JOURNAL_MODEL_ID,
   GEMINI_API_KEY_STORAGE_KEY,
+  GEMINI_DOC_AI_MODEL_STORAGE_KEY,
   GEMINI_JOURNAL_MODEL_STORAGE_KEY,
   GEMINI_MODELS,
 } from '@affine/core/modules/ai-button/services/models';
@@ -21,46 +23,55 @@ import { GlobalStateService } from '@affine/core/modules/storage';
 import { useService } from '@toeverything/infra';
 import { useCallback, useState } from 'react';
 
-const JournalModelSetting = () => {
+const GeminiModelSetting = ({
+  name,
+  desc,
+  storageKey,
+  defaultModelId,
+  testIdPrefix,
+}: {
+  name: string;
+  desc: string;
+  storageKey: string;
+  defaultModelId: string;
+  testIdPrefix: string;
+}) => {
   const globalState = useService(GlobalStateService).globalState;
   const [modelId, setModelId] = useState(
-    () =>
-      globalState.get<string>(GEMINI_JOURNAL_MODEL_STORAGE_KEY) ??
-      DEFAULT_JOURNAL_MODEL_ID
+    () => globalState.get<string>(storageKey) ?? defaultModelId
   );
 
   const handleSelect = useCallback(
     (id: string) => {
-      globalState.set(GEMINI_JOURNAL_MODEL_STORAGE_KEY, id);
+      globalState.set(storageKey, id);
       setModelId(id);
     },
-    [globalState]
+    [globalState, storageKey]
   );
 
   const current =
     GEMINI_MODELS.find(model => model.id === modelId) ??
-    GEMINI_MODELS.find(model => model.id === DEFAULT_JOURNAL_MODEL_ID);
+    GEMINI_MODELS.find(model => model.id === defaultModelId);
 
   return (
-    <SettingRow
-      name="智慧AI提煉大綱使用模型"
-      desc="日記的 AI 摘要與心情偵測會使用這個 Gemini 模型。"
-      data-testid="journal-model-row"
-    >
+    <SettingRow name={name} desc={desc} data-testid={`${testIdPrefix}-row`}>
       <Menu
         items={GEMINI_MODELS.map(model => (
           <MenuItem
             key={model.id}
             selected={model.id === modelId}
             onSelect={() => handleSelect(model.id)}
-            data-testid={`journal-model-${model.id}`}
+            data-testid={`${testIdPrefix}-${model.id}`}
           >
             {model.name}
           </MenuItem>
         ))}
         contentOptions={{ align: 'end' }}
       >
-        <MenuTrigger style={{ width: 220 }} data-testid="journal-model-trigger">
+        <MenuTrigger
+          style={{ width: 220 }}
+          data-testid={`${testIdPrefix}-trigger`}
+        >
           {current?.name ?? modelId}
         </MenuTrigger>
       </Menu>
@@ -122,7 +133,20 @@ export const ApiKeySettings = () => {
             </Button>
           </div>
         </SettingRow>
-        <JournalModelSetting />
+        <GeminiModelSetting
+          name="智慧AI提煉大綱使用模型"
+          desc="日記的 AI 摘要與心情偵測會使用這個 Gemini 模型。"
+          storageKey={GEMINI_JOURNAL_MODEL_STORAGE_KEY}
+          defaultModelId={DEFAULT_JOURNAL_MODEL_ID}
+          testIdPrefix="journal-model"
+        />
+        <GeminiModelSetting
+          name="日記內/ai使用模型"
+          desc="在文件中輸入 /ai（Ask AI、摘要、續寫等）會使用這個 Gemini 模型。"
+          storageKey={GEMINI_DOC_AI_MODEL_STORAGE_KEY}
+          defaultModelId={DEFAULT_DOC_AI_MODEL_ID}
+          testIdPrefix="doc-ai-model"
+        />
       </SettingWrapper>
     </>
   );
