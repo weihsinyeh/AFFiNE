@@ -9,6 +9,7 @@ import {
   FolderIcon,
   InformationIcon,
   KeyboardIcon,
+  LockIcon,
   MeetingIcon,
   NotificationIcon,
   PenIcon,
@@ -19,6 +20,7 @@ import { useEffect, useMemo } from 'react';
 import { AuthService, ServerService } from '../../../../modules/cloud';
 import type { SettingSidebarItem, SettingState } from '../types';
 import { AboutAffine } from './about';
+import { ApiKeySettings } from './api-key';
 import { AppearanceSettings } from './appearance';
 import { BackupSettingPanel } from './backup';
 import { BillingSettings } from './billing';
@@ -65,6 +67,12 @@ export const useGeneralSettingList = (): GeneralSettingList => {
   return useMemo(() => {
     const settings: GeneralSettingList = [
       {
+        key: 'api-key',
+        title: 'API Key',
+        icon: <LockIcon />,
+        testId: 'api-key-panel-trigger',
+      },
+      {
         key: 'appearance',
         title: t['com.affine.settings.appearance'](),
         icon: <AppearanceIcon />,
@@ -86,8 +94,8 @@ export const useGeneralSettingList = (): GeneralSettingList => {
       });
     }
     if (enableEditorSettings) {
-      // add editor settings to second position
-      settings.splice(1, 0, {
+      // add editor settings right after appearance
+      settings.splice(2, 0, {
         key: 'editor',
         title: t['com.affine.settings.editorSettings'](),
         icon: <PenIcon />,
@@ -109,14 +117,14 @@ export const useGeneralSettingList = (): GeneralSettingList => {
     }
 
     if (hasPaymentFeature) {
-      settings.splice(4, 0, {
+      settings.splice(5, 0, {
         key: 'plans',
         title: t['com.affine.payment.title'](),
         icon: <UpgradeIcon />,
         testId: 'plans-panel-trigger',
       });
       if (loggedIn) {
-        settings.splice(4, 0, {
+        settings.splice(5, 0, {
           key: 'billing',
           title: t['com.affine.payment.billing-setting.title'](),
           icon: <PaymentIcon />,
@@ -174,6 +182,8 @@ export const GeneralSetting = ({
       return <NotificationSettings />;
     case 'editor':
       return <EditorSettings />;
+    case 'api-key':
+      return <ApiKeySettings />;
     case 'appearance':
       return <AppearanceSettings />;
     case 'meetings':

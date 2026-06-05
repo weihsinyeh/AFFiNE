@@ -11,6 +11,8 @@ import type { GlobalStateService } from '../../storage';
 
 const AI_MODEL_ID_KEY = 'AIModelId';
 
+export const GEMINI_API_KEY_STORAGE_KEY = 'GeminiApiKey';
+
 export interface AIModel {
   name: string;
   id: string;
@@ -19,6 +21,62 @@ export interface AIModel {
   isPro: boolean;
   isDefault: boolean;
 }
+
+/**
+ * Google Gemini models available with a user-provided API key
+ * (set in Settings -> General -> API Key). Always listed in the model
+ * selector, even when the AFFiNE backend is unreachable.
+ */
+const GEMINI_MODELS: AIModel[] = [
+  {
+    name: 'Gemini 3 Pro',
+    id: 'gemini-3-pro-preview',
+    version: '3 Pro',
+    category: 'Gemini',
+    isPro: false,
+    isDefault: false,
+  },
+  {
+    name: 'Gemini 3 Flash',
+    id: 'gemini-3-flash-preview',
+    version: '3 Flash',
+    category: 'Gemini',
+    isPro: false,
+    isDefault: false,
+  },
+  {
+    name: 'Gemini 2.5 Pro',
+    id: 'gemini-2.5-pro',
+    version: '2.5 Pro',
+    category: 'Gemini',
+    isPro: false,
+    isDefault: false,
+  },
+  {
+    name: 'Gemini 2.5 Flash',
+    id: 'gemini-2.5-flash',
+    version: '2.5 Flash',
+    category: 'Gemini',
+    isPro: false,
+    isDefault: true,
+  },
+  {
+    name: 'Gemini 2.5 Flash-Lite',
+    id: 'gemini-2.5-flash-lite',
+    version: '2.5 Flash-Lite',
+    category: 'Gemini',
+    isPro: false,
+    isDefault: false,
+  },
+  {
+    name: 'Gemini 2.0 Flash',
+    id: 'gemini-2.0-flash',
+    version: '2.0 Flash',
+    category: 'Gemini',
+    isPro: false,
+    isDefault: false,
+  },
+];
 
 export class AIModelService extends Service {
   modelId: Signal<string | undefined>;
@@ -81,12 +139,33 @@ export class AIModelService extends Service {
     this.disposables.push(() => sub.unsubscribe());
   };
 
+  /**
+   * The user-provided Google Gemini API key, managed in
+   * Settings -> General -> API Key.
+   */
+  get geminiApiKey(): string | undefined {
+    return this.globalStateService.globalState.get<string>(
+      GEMINI_API_KEY_STORAGE_KEY
+    );
+  }
+
+  setGeminiApiKey = (apiKey: string | undefined) => {
+    this.globalStateService.globalState.set(
+      GEMINI_API_KEY_STORAGE_KEY,
+      apiKey || undefined
+    );
+  };
+
   private readonly initModels = async (prompt?: string) => {
+    // Gemini models are always available (BYO API key), even when the
+    // AFFiNE backend is unreachable.
+    this.models.value = GEMINI_MODELS;
+
     const promptName = prompt || 'Chat With AFFiNE AI';
-    const models = await this.getModelsByPrompt(promptName);
+    const models = await this.getModelsByPrompt(promptName).catch(() => null);
     if (models) {
       const { defaultModel, optionalModels, proModels } = models;
-      this.models.value = optionalModels.map(model => {
+      const backendModels = optionalModels.map(model => {
         const [category] = model.name.split(' ');
         const version = model.name.slice(category.length + 1);
         return {
@@ -98,6 +177,12 @@ export class AIModelService extends Service {
           isDefault: model.id === defaultModel,
         };
       });
+      // the backend provides its own default model, so demote the
+      // built-in Gemini default to avoid two defaults
+      this.models.value = [
+        ...backendModels,
+        ...GEMINI_MODELS.map(model => ({ ...model, isDefault: false })),
+      ];
     }
   };
 

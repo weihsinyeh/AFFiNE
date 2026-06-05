@@ -5,6 +5,7 @@ import type { WorkspaceMetadata } from '../workspace';
 export type SettingTab =
   | 'shortcuts'
   | 'notifications'
+  | 'api-key'
   | 'appearance'
   | 'about'
   | 'plans'
