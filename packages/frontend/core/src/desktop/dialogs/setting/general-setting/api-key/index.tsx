@@ -1,13 +1,72 @@
-import { Button, Input, notify } from '@affine/component';
+import {
+  Button,
+  Input,
+  Menu,
+  MenuItem,
+  MenuTrigger,
+  notify,
+} from '@affine/component';
 import {
   SettingHeader,
   SettingRow,
   SettingWrapper,
 } from '@affine/component/setting-components';
-import { GEMINI_API_KEY_STORAGE_KEY } from '@affine/core/modules/ai-button/services/models';
+import {
+  DEFAULT_JOURNAL_MODEL_ID,
+  GEMINI_API_KEY_STORAGE_KEY,
+  GEMINI_JOURNAL_MODEL_STORAGE_KEY,
+  GEMINI_MODELS,
+} from '@affine/core/modules/ai-button/services/models';
 import { GlobalStateService } from '@affine/core/modules/storage';
 import { useService } from '@toeverything/infra';
 import { useCallback, useState } from 'react';
+
+const JournalModelSetting = () => {
+  const globalState = useService(GlobalStateService).globalState;
+  const [modelId, setModelId] = useState(
+    () =>
+      globalState.get<string>(GEMINI_JOURNAL_MODEL_STORAGE_KEY) ??
+      DEFAULT_JOURNAL_MODEL_ID
+  );
+
+  const handleSelect = useCallback(
+    (id: string) => {
+      globalState.set(GEMINI_JOURNAL_MODEL_STORAGE_KEY, id);
+      setModelId(id);
+    },
+    [globalState]
+  );
+
+  const current =
+    GEMINI_MODELS.find(model => model.id === modelId) ??
+    GEMINI_MODELS.find(model => model.id === DEFAULT_JOURNAL_MODEL_ID);
+
+  return (
+    <SettingRow
+      name="智慧AI提煉大綱使用模型"
+      desc="日記的 AI 摘要與心情偵測會使用這個 Gemini 模型。"
+      data-testid="journal-model-row"
+    >
+      <Menu
+        items={GEMINI_MODELS.map(model => (
+          <MenuItem
+            key={model.id}
+            selected={model.id === modelId}
+            onSelect={() => handleSelect(model.id)}
+            data-testid={`journal-model-${model.id}`}
+          >
+            {model.name}
+          </MenuItem>
+        ))}
+        contentOptions={{ align: 'end' }}
+      >
+        <MenuTrigger style={{ width: 220 }} data-testid="journal-model-trigger">
+          {current?.name ?? modelId}
+        </MenuTrigger>
+      </Menu>
+    </SettingRow>
+  );
+};
 
 export const ApiKeySettings = () => {
   const globalState = useService(GlobalStateService).globalState;
@@ -63,6 +122,7 @@ export const ApiKeySettings = () => {
             </Button>
           </div>
         </SettingRow>
+        <JournalModelSetting />
       </SettingWrapper>
     </>
   );

@@ -13,6 +13,14 @@ const AI_MODEL_ID_KEY = 'AIModelId';
 
 export const GEMINI_API_KEY_STORAGE_KEY = 'GeminiApiKey';
 
+/**
+ * The Gemini model used by the journal "智慧AI提煉大綱" feature
+ * (mood detection + summary), configurable in Settings -> General -> API Key.
+ */
+export const GEMINI_JOURNAL_MODEL_STORAGE_KEY = 'GeminiJournalModelId';
+
+export const DEFAULT_JOURNAL_MODEL_ID = 'gemini-2.5-flash';
+
 export interface AIModel {
   name: string;
   id: string;
@@ -27,7 +35,7 @@ export interface AIModel {
  * (set in Settings -> General -> API Key). Always listed in the model
  * selector, even when the AFFiNE backend is unreachable.
  */
-const GEMINI_MODELS: AIModel[] = [
+export const GEMINI_MODELS: AIModel[] = [
   {
     name: 'Gemini 3 Pro',
     id: 'gemini-3-pro-preview',

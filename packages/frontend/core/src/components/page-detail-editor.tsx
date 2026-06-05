@@ -3,11 +3,18 @@ import clsx from 'clsx';
 import html2canvas from 'html2canvas';
 import { useRef, useState } from 'react';
 
+import { streamGeminiChat } from '../blocksuite/ai/runtime/request/gemini-direct';
 import type { AffineEditorContainer } from '../blocksuite/block-suite-editor';
 import { BlockSuiteEditor } from '../blocksuite/block-suite-editor';
+import {
+  DEFAULT_JOURNAL_MODEL_ID,
+  GEMINI_API_KEY_STORAGE_KEY,
+  GEMINI_JOURNAL_MODEL_STORAGE_KEY,
+} from '../modules/ai-button/services/models';
 import { DocService } from '../modules/doc';
 import { EditorService } from '../modules/editor';
 import { EditorSettingService } from '../modules/editor-setting';
+import { GlobalStateService } from '../modules/storage';
 import * as styles from './page-detail-editor.css';
 
 declare global {
@@ -53,6 +60,8 @@ export const PageDetailEditor = ({
   const fullWidthLayout = pageWidth
     ? pageWidth === 'fullWidth'
     : settings.fullWidthLayout;
+
+  const globalState = useService(GlobalStateService).globalState;
 
   // =================================================================
   // 📸 狀態與函式注入區（官方原生 AI 完美咬合版）
@@ -131,50 +140,64 @@ export const PageDetailEditor = ({
 
     console.log('🎯 成功灌入官方原生 Gemini 的日記總文字：\n', rawText);
 
-    // 2. 🚀 調用 AFFiNE 內建已經跟隨登入帳號開通的 Gemini AI 引擎
+    // 2. 🚀 透過使用者的 Gemini API key 直連 Google，進行心情偵測與日記摘要
     try {
-      const blockSuiteDoc = editor.doc.blockSuiteDoc as any;
-      const affineAIEngine =
-        blockSuiteDoc?.workspace?.ai ||
-        blockSuiteDoc?.service?.ai ||
-        (window as any).currentEditor?.host?.std?.get?.('affine:ai');
+      const apiKey = globalState.get<string>(GEMINI_API_KEY_STORAGE_KEY);
+      const journalModelId =
+        globalState.get<string>(GEMINI_JOURNAL_MODEL_STORAGE_KEY) ??
+        DEFAULT_JOURNAL_MODEL_ID;
 
-      if (affineAIEngine && typeof affineAIEngine.execute === 'function') {
-        // 💡 頂級 Prompt 命令：嚴厲禁止任何「...」不完整斷尾，要求產出完整且字數適中的高階大綱短句！
-        const aiPrompt = `你是一個精緻的生活雜誌資深編輯。請仔細閱讀以下使用者打的全部日記內文，幫我精準提煉出一個反映整篇日記核心情緒的短標題（必須包含一個 Emoji），以及適合放上 Instagram 限時動態的生活重點大綱（根據內容豐富度與重要性，聰明提煉出 1 到 3 句即可，不要直接複製原文）。
-        
-        【🔥 核心語意鐵律】：
-        1. 每一句大綱都必須是「語意完全完整、流暢能單獨成句」的優雅生活短句。
-        2. 嚴禁在半路或句子結尾出現任何「...」或未完結的懸念。
-        3. 如果日記寫得很短，請回傳總共 1 到 2 個元素的簡短 JSON 陣列即可，不需要強行湊數。
-        4. 請嚴格以標準的 JSON 陣列字串格式回傳，絕對不要包含任何 markdown 標籤（如 \`\`\`json）。格式範例：["情緒標題", "精緻大綱一", "精緻大綱二"]
-        
-        使用者的全部日記內文如下：\n${rawText}`;
+      if (apiKey) {
+        const aiPrompt = `你是一位精緻的生活雜誌資深編輯。請仔細閱讀以下日記內文，完成兩件事：
+1. 「心情偵測」：用一句含 Emoji 的短句精準描述作者當天的整體心情（15 字以內）。
+2. 「日記摘要」：用 1~2 句優雅流暢的話總結這篇日記的重點（50 字以內）。
+另外再提煉 0~2 句適合放上 Instagram 限時動態的生活亮點短句。
 
-        console.log('🤖 正在透過 AFFiNE 原生通道發送大模型請求...');
-        const aiResponse = await affineAIEngine.execute({ prompt: aiPrompt });
-        const resultString =
-          typeof aiResponse === 'string' ? aiResponse : aiResponse?.content;
+【核心鐵律】
+- 每一句都必須語意完整，嚴禁出現「...」或未完結的斷尾。
+- 嚴格以標準 JSON 物件回傳，絕對不要包含任何 markdown 標籤（如 \`\`\`json）。格式範例：
+{"mood":"😊 心情短句","summary":"日記摘要","highlights":["亮點一","亮點二"]}
 
-        console.log('🤖 [AFFiNE Gemini 響應原始內容]：', resultString);
+日記內文如下：
+${rawText}`;
 
-        const matchJson = resultString?.match(/\[.*\]/s);
+        console.log(`🤖 正在用 ${journalModelId} 進行心情偵測與摘要提煉...`);
+        let resultString = '';
+        for await (const chunk of streamGeminiChat({
+          apiKey,
+          modelId: journalModelId,
+          contents: [{ role: 'user', parts: [{ text: aiPrompt }] }],
+        })) {
+          resultString += chunk;
+        }
+        console.log('🤖 [Gemini 響應原始內容]：', resultString);
 
-        if (matchJson && matchJson[0]) {
-          const cleanArray = JSON.parse(matchJson[0]);
-          console.log(
-            '🎉 [真・AI 大綱提煉成功] 陣列長度為：',
-            cleanArray.length
-          );
-          setAiSummary(cleanArray);
-          setIsGenerating(false);
-          return;
+        const matchJson = resultString.match(/\{[\s\S]*\}/);
+        if (matchJson) {
+          const parsed = JSON.parse(matchJson[0]) as {
+            mood?: string;
+            summary?: string;
+            highlights?: string[];
+          };
+          const cards = [
+            parsed.mood,
+            parsed.summary ? `📝 ${parsed.summary}` : undefined,
+            ...(parsed.highlights ?? []).slice(0, 2),
+          ].filter((card): card is string => !!card);
+          if (cards.length > 0) {
+            console.log('🎉 [Gemini 心情偵測＋摘要成功]', parsed);
+            setAiSummary(cards);
+            setIsGenerating(false);
+            return;
+          }
         }
       } else {
-        console.warn('⚠️ 未能偵測到有效的 AFFiNE 原生 AI 引擎物件');
+        console.warn(
+          '⚠️ 尚未設定 Gemini API key（Settings → General → API Key），改用本地備援分析'
+        );
       }
     } catch (aiErr) {
-      console.error('🛑 呼叫 AFFiNE 原生 AI 通道時發生錯誤:', aiErr);
+      console.error('🛑 呼叫 Gemini API 失敗，改用本地備援分析:', aiErr);
     }
 
     // 3. 🛑 終極智慧安全備援防線（萬一官方大模型因連線或點數不足未回應時兜底，100%防死鎖）
