@@ -8,7 +8,6 @@ import { BlockSuiteEditor } from '../blocksuite/block-suite-editor';
 import { DocService } from '../modules/doc';
 import { EditorService } from '../modules/editor';
 import { EditorSettingService } from '../modules/editor-setting';
-
 import * as styles from './page-detail-editor.css';
 
 declare global {
@@ -294,7 +293,7 @@ export const PageDetailEditor = ({
       .replace(/\//g, '-');
 
     const link = document.createElement('a');
-    link.download = `AFFiNE-Journal-2026-06-01.png`;
+    link.download = `AFFiNE-Journal-${localDateStr}.png`;
     link.href = dataUrl;
     link.click();
   };
