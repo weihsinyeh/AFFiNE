@@ -346,6 +346,14 @@ export const journalDateCellAgendaItem = style({
       borderLeftColor: cssVarV2.calendar.blue,
       fontWeight: 500,
     },
+    '&[data-type="todo"]': {
+      borderLeftColor: cssVarV2.calendar.teal,
+      fontWeight: 500,
+    },
+    '&[data-type="meeting"]': {
+      borderLeftColor: cssVarV2.calendar.purple,
+      fontWeight: 500,
+    },
   },
 });
 
@@ -500,6 +508,25 @@ export const fullCalendarDayCell = style([
   },
 ]);
 
+export const fullCalendarDayCellHeader = style({
+  flex: '0 0 auto',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  marginBottom: 4,
+  gap: 2,
+});
+
+export const fullCalendarAddBtn = style({
+  opacity: 0,
+  transition: 'opacity 0.15s',
+  selectors: {
+    [`${fullCalendarDayCell}:hover &`]: {
+      opacity: 1,
+    },
+  },
+});
+
 export const fullCalendarDayNumber = style({
   display: 'flex',
   alignItems: 'center',
@@ -510,7 +537,6 @@ export const fullCalendarDayNumber = style({
   fontSize: 13,
   fontWeight: 400,
   color: cssVar('textPrimaryColor'),
-  marginBottom: 4,
   flex: '0 0 auto',
   selectors: {
     '[data-outside="true"] &': {
@@ -551,6 +577,14 @@ export const fullCalendarAgendaItem = style({
   selectors: {
     '&[data-type="journal"]': {
       borderLeftColor: cssVarV2.calendar.blue,
+      fontWeight: 500,
+    },
+    '&[data-type="todo"]': {
+      borderLeftColor: cssVarV2.calendar.teal,
+      fontWeight: 500,
+    },
+    '&[data-type="meeting"]': {
+      borderLeftColor: cssVarV2.calendar.purple,
       fontWeight: 500,
     },
   },

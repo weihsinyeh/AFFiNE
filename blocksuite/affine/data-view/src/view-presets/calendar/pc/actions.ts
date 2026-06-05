@@ -86,13 +86,6 @@ export const openCalendarEntry = (
   });
 };
 
-const dayFormatter = new Intl.DateTimeFormat(undefined, {
-  weekday: 'long',
-  year: 'numeric',
-  month: 'long',
-  day: 'numeric',
-});
-
 export const openCalendarDayView = (
   root: DataViewRootUILogic,
   view: CalendarSingleView,
@@ -125,7 +118,7 @@ export const openCalendarDayView = (
               `,
             ]
           : dayEntries.map(entry => () => {
-              const label = entry.kind === 'row' ? entry.title : entry.title;
+              const label = entry.title;
               const timeStr =
                 entry.kind === 'row' ? '' : ` • ${formatEntryTime(entry)}`;
 

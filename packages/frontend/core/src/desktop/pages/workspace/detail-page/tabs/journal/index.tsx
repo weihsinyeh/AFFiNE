@@ -25,6 +25,7 @@ import {
   WorkbenchService,
 } from '@affine/core/modules/workbench';
 import { useI18n } from '@affine/i18n';
+import { Text } from '@blocksuite/affine/store';
 import {
   ArrowLeftSmallIcon,
   ArrowRightSmallIcon,
@@ -32,6 +33,7 @@ import {
   EditIcon,
   ExpandCloseIcon,
   ExpandFullIcon,
+  PlusIcon,
 } from '@blocksuite/icons/rc';
 import {
   useLiveData,
@@ -233,6 +235,8 @@ const FullCalendarDayCell = ({
   const t = useI18n();
   const calendar = useService(IntegrationService).calendar;
   const journalService = useService(JournalService);
+  const docsService = useService(DocsService);
+  const workbench = useService(WorkbenchService).workbench;
   const dateKey = day.format('YYYY-MM-DD');
   const isToday = day.isSame(dayjs(), 'day');
 
@@ -246,27 +250,154 @@ const FullCalendarDayCell = ({
     )
   );
 
-  const hasJournal = journals.length > 0;
-  const maxEvents = hasJournal ? 3 : 4;
+  // Categorise journals for this day by title prefix so todo/meeting docs
+  // (tagged with setJournalDate at creation) render as distinct tags.
+  const { journalDocs, todoDocs, meetingDocs } = useMemo(() => {
+    const journalDocs = [];
+    const todoDocs = [];
+    const meetingDocs = [];
+    for (const doc of journals) {
+      const title = doc.meta$.value.title || '';
+      if (title.startsWith('Todo ·')) {
+        todoDocs.push(doc);
+      } else if (title.startsWith('Meeting ·')) {
+        meetingDocs.push(doc);
+      } else {
+        journalDocs.push(doc);
+      }
+    }
+    return { journalDocs, todoDocs, meetingDocs };
+  }, [journals]);
+
+  const tagCount =
+    (journalDocs.length > 0 ? 1 : 0) +
+    (todoDocs.length > 0 ? 1 : 0) +
+    (meetingDocs.length > 0 ? 1 : 0);
+  const maxEvents = Math.max(0, 4 - tagCount);
   const visibleEvents = events.slice(0, maxEvents);
   const hiddenCount = events.length - visibleEvents.length;
 
+  const handleCreateDoc = useCallback(
+    (type: 'todo' | 'meeting') => {
+      const prefix = type === 'todo' ? 'Todo' : 'Meeting';
+      const title = `${prefix} · ${day.format('MMM D, YYYY')}`;
+      // createDoc sets the title synchronously, so setJournalDate (called below)
+      // will see the correct title in journalsByDate$ immediately — no "2 journals" flash.
+      const newDoc = docsService.createDoc({
+        title,
+        docProps:
+          type === 'todo'
+            ? {
+                paragraph: { type: 'h3', text: new Text("Today's Tasks") },
+                onStoreLoad: (store, { noteId }) => {
+                  store.addBlock(
+                    'affine:list',
+                    { type: 'todo', text: new Text('') },
+                    noteId
+                  );
+                  store.addBlock(
+                    'affine:list',
+                    { type: 'todo', text: new Text('') },
+                    noteId
+                  );
+                  store.addBlock(
+                    'affine:list',
+                    { type: 'todo', text: new Text('') },
+                    noteId
+                  );
+                },
+              }
+            : {
+                paragraph: { type: 'h3', text: new Text('Meeting Notes') },
+                onStoreLoad: (store, { noteId }) => {
+                  store.addBlock(
+                    'affine:paragraph',
+                    { type: 'h6', text: new Text('Location') },
+                    noteId
+                  );
+                  store.addBlock(
+                    'affine:paragraph',
+                    { text: new Text('') },
+                    noteId
+                  );
+                  store.addBlock(
+                    'affine:paragraph',
+                    { type: 'h6', text: new Text('Discussion Points') },
+                    noteId
+                  );
+                  store.addBlock(
+                    'affine:paragraph',
+                    { text: new Text('') },
+                    noteId
+                  );
+                },
+              },
+      });
+      const journalDoc = journalService.ensureJournalByDate(dateKey);
+      journalService.setJournalDate(newDoc.id, dateKey);
+      docsService.addLinkedDoc(journalDoc.id, newDoc.id).catch(console.error);
+      workbench.openDoc(newDoc.id, { at: 'active' });
+    },
+    [dateKey, day, docsService, journalService, workbench]
+  );
+
   return (
-    <button
+    <div
       className={styles.fullCalendarDayCell}
       data-today={isToday}
       data-outside={!isCurrentMonth}
       data-selected={isSelected}
       tabIndex={0}
+      role="button"
       onClick={() => onSelect(dateKey)}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') onSelect(dateKey);
+      }}
     >
-      <span className={styles.fullCalendarDayNumber} data-today={isToday}>
-        {day.date()}
-      </span>
+      <div className={styles.fullCalendarDayCellHeader}>
+        <span className={styles.fullCalendarDayNumber} data-today={isToday}>
+          {day.date()}
+        </span>
+        <div
+          className={styles.fullCalendarAddBtn}
+          onClick={e => e.stopPropagation()}
+        >
+          <Menu
+            items={
+              <>
+                <MenuItem onClick={() => void handleCreateDoc('todo')}>
+                  New Todo
+                </MenuItem>
+                <MenuItem onClick={() => void handleCreateDoc('meeting')}>
+                  New Meeting Note
+                </MenuItem>
+              </>
+            }
+          >
+            <IconButton style={{ width: 20, height: 20 }}>
+              <PlusIcon />
+            </IconButton>
+          </Menu>
+        </div>
+      </div>
       <div className={styles.fullCalendarDayAgenda}>
-        {hasJournal ? (
+        {journalDocs.length > 0 ? (
           <span className={styles.fullCalendarAgendaItem} data-type="journal">
-            {journals.length > 1 ? `${journals.length} Journals` : 'Journal'}
+            {journalDocs.length > 1
+              ? `${journalDocs.length} Journals`
+              : 'Journal'}
+          </span>
+        ) : null}
+        {todoDocs.length > 0 ? (
+          <span className={styles.fullCalendarAgendaItem} data-type="todo">
+            {todoDocs.length > 1 ? `${todoDocs.length} Todos` : 'Todo'}
+          </span>
+        ) : null}
+        {meetingDocs.length > 0 ? (
+          <span className={styles.fullCalendarAgendaItem} data-type="meeting">
+            {meetingDocs.length > 1
+              ? `${meetingDocs.length} Meetings`
+              : 'Meeting'}
           </span>
         ) : null}
         {visibleEvents.map(event => (
@@ -288,7 +419,7 @@ const FullCalendarDayCell = ({
           </span>
         ) : null}
       </div>
-    </button>
+    </div>
   );
 };
 
