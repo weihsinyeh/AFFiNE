@@ -1,7 +1,7 @@
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import html2canvas from 'html2canvas';
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { streamGeminiChat } from '../blocksuite/ai/runtime/request/gemini-direct';
 import type { AffineEditorContainer } from '../blocksuite/block-suite-editor';
@@ -67,9 +67,27 @@ export const PageDetailEditor = ({
   // 📸 狀態與函式注入區（官方原生 AI 完美咬合版）
   // =================================================================
   const [bgImage, setBgImage] = useState<string | null>(null);
-  const [aiSummary, setAiSummary] = useState<string[]>([]);
+  // AI 生成結果依文件暫存在瀏覽器 localStorage：重新整理／切換頁面後仍在，
+  // 無痕模式關閉後自然消失
+  const aiSummaryStorageKey = `JournalAISummary:${doc.id}`;
+  const [aiSummary, setAiSummary] = useState<string[]>(
+    () => globalState.get<string[]>(aiSummaryStorageKey) ?? []
+  );
   const [isGenerating, setIsGenerating] = useState(false);
   const shareCardRef = useRef<HTMLDivElement>(null);
+
+  // 切換到別的文件時，載入該文件自己的暫存結果
+  useEffect(() => {
+    setAiSummary(globalState.get<string[]>(aiSummaryStorageKey) ?? []);
+  }, [aiSummaryStorageKey, globalState]);
+
+  const applyAiSummary = useCallback(
+    (cards: string[]) => {
+      setAiSummary(cards);
+      globalState.set(aiSummaryStorageKey, cards);
+    },
+    [aiSummaryStorageKey, globalState]
+  );
 
   // 💡 提取日記真實日期的核心輔助函式（完美跟隨日記頁面標題）
   const getJournalTargetDate = () => {
@@ -186,7 +204,7 @@ ${rawText}`;
           ].filter((card): card is string => !!card);
           if (cards.length > 0) {
             console.log('🎉 [Gemini 心情偵測＋摘要成功]', parsed);
-            setAiSummary(cards);
+            applyAiSummary(cards);
             setIsGenerating(false);
             return;
           }
@@ -288,7 +306,7 @@ ${rawText}`;
       dynamicSummary.push(`📌 ${cleanSentence}`);
     }
 
-    setAiSummary(dynamicSummary);
+    applyAiSummary(dynamicSummary);
     setIsGenerating(false);
   };
 
