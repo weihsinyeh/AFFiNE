@@ -252,11 +252,16 @@ export class TextRenderer extends SignalWatcher(
     );
   };
 
+  private _renderSeq = 0;
+
   private readonly _updateDoc = () => {
     if (this._answers.length > 0) {
       const latestAnswer = this._answers.pop();
       this._answers = [];
       if (latestAnswer) {
+        // guard against out-of-order async renders: only the most recent
+        // markdown conversion may commit its result
+        const seq = ++this._renderSeq;
         const middlewares = [
           defaultImageProxyMiddleware,
           codeBlockWrapMiddleware(true),
@@ -268,6 +273,7 @@ export class TextRenderer extends SignalWatcher(
           this.options.affineFeatureFlagService
         )
           .then(doc => {
+            if (seq !== this._renderSeq) return;
             this.disposeDoc();
             this._doc = doc.doc.getStore({
               query: this._query,
@@ -317,6 +323,10 @@ export class TextRenderer extends SignalWatcher(
   override disconnectedCallback() {
     super.disconnectedCallback();
     this._clearTimer();
+    if (this._flushTimeout) {
+      clearTimeout(this._flushTimeout);
+      this._flushTimeout = null;
+    }
     this.disposeDoc();
   }
 
@@ -348,9 +358,26 @@ export class TextRenderer extends SignalWatcher(
     `;
   }
 
+  private _flushTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  private readonly _scheduleFlush = () => {
+    if (this._flushTimeout) return;
+    // throttle while streaming, flush promptly otherwise
+    const delay = this.state === 'generating' ? 600 : 50;
+    this._flushTimeout = setTimeout(() => {
+      this._flushTimeout = null;
+      this._updateDoc();
+    }, delay);
+  };
+
   override shouldUpdate(changedProperties: PropertyValues) {
     if (changedProperties.has('answer')) {
       this._answers.push(this.answer);
+      // Always schedule a trailing flush. The mount-time interval alone is
+      // not reliable: fast streams can finish before mount, and DOM moves
+      // disconnect the element which kills the interval — either way queued
+      // answers would never render.
+      this._scheduleFlush();
       return false;
     }
 

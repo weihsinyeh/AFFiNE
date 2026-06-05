@@ -140,6 +140,20 @@ export class AIModelService extends Service {
   };
 
   /**
+   * The model that will actually serve the next request: the explicitly
+   * selected model if it exists, otherwise the default model. The selector
+   * UI displays the default without persisting a selection, so senders
+   * should use this instead of `modelId` directly.
+   */
+  get effectiveModelId(): string | undefined {
+    const modelId = this.modelId.value;
+    const models = this.models.value;
+    const active = models.find(model => model.id === modelId);
+    const fallback = models.find(model => model.isDefault);
+    return (active ?? fallback)?.id ?? modelId;
+  }
+
+  /**
    * The user-provided Google Gemini API key, managed in
    * Settings -> General -> API Key.
    */

@@ -1,6 +1,11 @@
 import type { CopilotChatHistoryFragment } from '@affine/graphql';
 
 import type { AIRequestService } from '../request';
+import {
+  buildGeminiContents,
+  isGeminiDirectModel,
+  streamGeminiChat,
+} from '../request/gemini-direct';
 import type { AIChatAction, AIChatSendOptions } from './actions';
 import type { AIChatSessionStrategy } from './session-strategy';
 import {
@@ -19,6 +24,12 @@ type RuntimeOptions = {
   request: AIRequestService;
   scope: AIChatScope;
   strategy: AIChatSessionStrategy;
+  /**
+   * Returns the user-provided Google Gemini API key (Settings -> General ->
+   * API Key). When set and a `gemini-*` model is selected, chat requests are
+   * streamed directly from the Gemini API instead of the AFFiNE backend.
+   */
+  getGeminiApiKey?: () => string | undefined;
 };
 
 type ContextStatus = 'finished' | 'processing' | 'failed';
@@ -275,10 +286,14 @@ export class AIChatRuntime {
       ...this.createInitialSnapshot(scope),
       readiness: 'initializing',
     });
-    const session = await this.options.strategy.loadInitialSession(
-      scope,
-      this.options.request
-    );
+    const session = await this.options.strategy
+      .loadInitialSession(scope, this.options.request)
+      .catch(error => {
+        // backend unreachable — fall back to a local draft session so the
+        // chat stays usable with direct Gemini models
+        console.warn('Failed to load initial AI chat session:', error);
+        return null;
+      });
     if (seq !== this.requestSeq) return;
     if (!session) {
       const draft = this.options.strategy.createDraftSession(scope);
@@ -365,6 +380,13 @@ export class AIChatRuntime {
           ],
     });
     try {
+      const modelId = options.modelId ?? this.snapshot.composer.modelId;
+      if (isGeminiDirectModel(modelId)) {
+        // Gemini models bypass the AFFiNE backend entirely
+        await this.sendViaGemini(modelId, seq);
+        return;
+      }
+
       const session = await this.ensureSession();
       if (seq !== this.requestSeq) return;
       if (!session) {
@@ -417,6 +439,42 @@ export class AIChatRuntime {
       if (seq !== this.requestSeq) return;
       this.commit({ status: 'error', error: this.toError(error) });
     }
+  }
+
+  /**
+   * Stream a chat response directly from the Google Gemini API using the
+   * user-provided key, without any AFFiNE backend session. The conversation
+   * lives in the local runtime snapshot.
+   */
+  private async sendViaGemini(modelId: string, seq: number) {
+    const apiKey = this.options.getGeminiApiKey?.();
+    if (!apiKey) {
+      throw new Error(
+        'No Gemini API key found. Add one in Settings → General → API Key.'
+      );
+    }
+    const contents = buildGeminiContents(this.snapshot.messages);
+    const stream = streamGeminiChat({
+      apiKey,
+      modelId,
+      contents,
+      signal: this.streamAbortController?.signal,
+    });
+    for await (const chunk of stream) {
+      if (seq !== this.requestSeq) return;
+      this.appendAssistantContent(chunk);
+      this.commit({ status: 'transmitting' });
+    }
+    if (seq !== this.requestSeq) return;
+    this.commit({
+      status: 'success',
+      tabs: this.markActiveTabHasMessages(this.snapshot.tabs),
+      composer: {
+        ...this.snapshot.composer,
+        text: '',
+        attachments: [],
+      },
+    });
   }
 
   private async retry() {

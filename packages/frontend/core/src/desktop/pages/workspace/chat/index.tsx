@@ -105,14 +105,16 @@ export const Component = () => {
 
   const workspaceId = useService(WorkspaceService).workspace.id;
 
+  const aiModelService = useService(AIModelService);
   const runtime = useMemo(
     () =>
       new AIChatRuntime({
         request: requestService,
         scope: { kind: 'workspace', workspaceId },
         strategy: new WorkspaceAIChatSessionStrategy(),
+        getGeminiApiKey: () => aiModelService.geminiApiKey,
       }),
-    [requestService, workspaceId]
+    [aiModelService, requestService, workspaceId]
   );
   const snapshot = useAIChatRuntime(runtime);
   const session =

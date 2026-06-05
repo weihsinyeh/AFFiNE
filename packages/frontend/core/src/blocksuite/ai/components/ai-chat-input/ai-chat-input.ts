@@ -858,7 +858,7 @@ export class AIChatInput extends SignalWatcher(
       control: this.trackOptions?.control,
       reasoning: this._isReasoningActive,
       toolsConfig: this.aiToolsConfigService.config.value,
-      modelId: this.aiModelService.modelId.value,
+      modelId: this.aiModelService.effectiveModelId,
       userInfo: {
         userId: userInfo?.id,
         userName: userInfo?.name,

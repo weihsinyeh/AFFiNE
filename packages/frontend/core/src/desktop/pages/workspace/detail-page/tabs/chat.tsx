@@ -130,6 +130,7 @@ export const EditorChatPanel = ({
     }
   }, [pendingSessionId, workbench]);
 
+  const aiModelService = useService(AIModelService);
   const runtime = useMemo(() => {
     if (!doc || !workspaceId) return null;
     return new AIChatRuntime({
@@ -141,8 +142,9 @@ export const EditorChatPanel = ({
         pendingSessionId,
       },
       strategy: new DocAIChatSessionStrategy(),
+      getGeminiApiKey: () => aiModelService.geminiApiKey,
     });
-  }, [doc, pendingSessionId, requestService, workspaceId]);
+  }, [aiModelService, doc, pendingSessionId, requestService, workspaceId]);
   const snapshot = useAIChatRuntime(runtime);
   const session =
     snapshot?.sessions.find(
