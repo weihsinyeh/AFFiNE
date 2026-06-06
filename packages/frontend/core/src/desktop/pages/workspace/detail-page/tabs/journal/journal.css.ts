@@ -866,11 +866,10 @@ export const fullCalendarAgendaMore = style({
 // snap-back / completion. No keyframe animations — the drag interaction
 // updates rotateY in real time via React state.
 
-/**
- * Notebook paper tone: a subtle warm off-white, like recycled paper —
- * noticeably not pure white, but far from yellow.
- */
-const flipBookPaperColor = '#f8f4e6';
+const flipBookPaperColor = '#faf7ef';
+// Text is hardcoded (not CSS vars) because the paper is always light.
+const flipBookTextPrimary = '#2c2820';
+const flipBookTextMuted = '#7a7060';
 
 export const flipBookOverlay = style({
   width: '100%',
@@ -936,6 +935,9 @@ export const flipBookContainer = style({
   userSelect: 'none',
   // book drop-shadow
   filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.22))',
+  // Base font for all page content — scales with container width,
+  // clamped so text stays readable at very small or very large sizes.
+  fontSize: 'clamp(11px, 3.8cqi, 16px)',
 });
 
 export const flipBookStaticPage = style({
@@ -1032,10 +1034,6 @@ export const flipBookPageInner = style({
   boxSizing: 'border-box',
   display: 'flex',
   flexDirection: 'column',
-  // Lined-paper effect starting below the date badge (~68px)
-  backgroundImage: `repeating-linear-gradient(transparent, transparent 21px, ${cssVar('borderColor')} 22px)`,
-  backgroundSize: '100% 22px',
-  backgroundPosition: '0 70px',
 });
 
 export const flipBookPageDateBadge = style({
@@ -1044,16 +1042,13 @@ export const flipBookPageDateBadge = style({
   alignItems: 'center',
   gap: 6,
   marginBottom: 6,
-  // Cover the lines in the date area
-  background: flipBookPaperColor,
-  paddingBottom: 4,
 });
 
 export const flipBookPageDayNum = style({
-  fontSize: 34,
+  fontSize: '3.1em',
   fontWeight: 700,
   lineHeight: 1,
-  color: cssVarV2.text.primary,
+  color: flipBookTextPrimary,
   fontVariantNumeric: 'tabular-nums',
   minWidth: 42,
   textAlign: 'center',
@@ -1067,17 +1062,17 @@ export const flipBookPageDateMeta = style({
 });
 
 export const flipBookPageMonthYear = style({
-  fontSize: 10,
+  fontSize: '1em',
   fontWeight: 600,
-  color: cssVarV2.text.secondary,
+  color: flipBookTextMuted,
   textTransform: 'uppercase',
   letterSpacing: '0.4px',
   lineHeight: 1.3,
 });
 
 export const flipBookPageWeekday = style({
-  fontSize: 10,
-  color: cssVar('textSecondaryColor'),
+  fontSize: '1em',
+  color: flipBookTextMuted,
   lineHeight: 1.3,
 });
 
@@ -1094,9 +1089,9 @@ export const flipBookPageDivider = style({
 
 export const flipBookPageText = style({
   flex: '1 1 auto',
-  fontSize: 10,
-  lineHeight: '22px',
-  color: cssVarV2.text.primary,
+  fontSize: '1em',
+  lineHeight: 1.6,
+  color: flipBookTextPrimary,
   overflow: 'hidden',
   wordBreak: 'break-word',
   whiteSpace: 'pre-wrap',
@@ -1109,26 +1104,26 @@ export const flipBookPageTextarea = style({
   border: 'none',
   outline: 'none',
   background: 'transparent',
-  fontSize: 10,
-  lineHeight: '22px',
-  color: cssVarV2.text.primary,
+  fontSize: '1em',
+  lineHeight: 1.6,
+  color: flipBookTextPrimary,
   fontFamily: 'inherit',
   padding: 0,
   overflow: 'hidden',
   wordBreak: 'break-word',
   selectors: {
     '&::placeholder': {
-      color: cssVar('textSecondaryColor'),
+      color: flipBookTextMuted,
       fontStyle: 'italic',
     },
   },
 });
 
 export const flipBookPageEmpty = style({
-  color: cssVar('textSecondaryColor'),
+  color: flipBookTextMuted,
   fontStyle: 'italic',
-  fontSize: 10,
-  lineHeight: '22px',
+  fontSize: '1em',
+  lineHeight: 1.6,
 });
 
 export const flipBookPageSections = style({
@@ -1148,12 +1143,28 @@ export const flipBookSection = style({
 });
 
 export const flipBookSectionLabel = style({
-  fontSize: 10,
+  fontSize: '1em',
   fontWeight: 600,
-  color: cssVarV2.text.secondary,
+  color: flipBookTextMuted,
   textTransform: 'uppercase',
   letterSpacing: '0.4px',
-  lineHeight: '22px',
+  lineHeight: 1.5,
+  paddingLeft: 5,
+  borderLeft: '2.5px solid transparent',
+  selectors: {
+    '&[data-section="journal"]': {
+      borderLeftColor: cssVarV2.calendar.blue,
+      color: cssVarV2.calendar.blue,
+    },
+    '&[data-section="task"]': {
+      borderLeftColor: cssVarV2.calendar.teal,
+      color: cssVarV2.calendar.teal,
+    },
+    '&[data-section="meeting"]': {
+      borderLeftColor: cssVarV2.calendar.purple,
+      color: cssVarV2.calendar.purple,
+    },
+  },
 });
 
 export const flipBookList = style({
@@ -1165,16 +1176,16 @@ export const flipBookList = style({
 });
 
 export const flipBookListItem = style({
-  fontSize: 10,
-  lineHeight: '22px',
-  color: cssVarV2.text.primary,
+  fontSize: '1em',
+  lineHeight: 1.6,
+  color: flipBookTextPrimary,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
   selectors: {
     '&::before': {
       content: '"• "',
-      color: cssVar('textSecondaryColor'),
+      color: flipBookTextMuted,
     },
   },
 });
@@ -1188,15 +1199,15 @@ export const flipBookSectionTextarea = style({
   border: 'none',
   outline: 'none',
   background: 'transparent',
-  fontSize: 10,
-  lineHeight: '22px',
-  color: cssVarV2.text.primary,
+  fontSize: '1em',
+  lineHeight: 1.6,
+  color: flipBookTextPrimary,
   fontFamily: 'inherit',
   padding: 0,
   overflow: 'auto',
   selectors: {
     '&::placeholder': {
-      color: cssVar('textSecondaryColor'),
+      color: flipBookTextMuted,
       fontStyle: 'italic',
     },
   },
@@ -1226,17 +1237,17 @@ export const flipBookMeetingNameInput = style({
   border: 'none',
   outline: 'none',
   background: 'transparent',
-  fontSize: 10,
+  fontSize: '1em',
   fontWeight: 600,
-  lineHeight: '16px',
-  color: cssVarV2.text.secondary,
+  lineHeight: 1.4,
+  color: flipBookTextMuted,
   fontFamily: 'inherit',
   padding: 0,
   textTransform: 'uppercase',
   letterSpacing: '0.4px',
   selectors: {
     '&::placeholder': {
-      color: cssVar('textSecondaryColor'),
+      color: flipBookTextMuted,
     },
   },
 });

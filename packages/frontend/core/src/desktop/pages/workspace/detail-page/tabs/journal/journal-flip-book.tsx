@@ -170,6 +170,9 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
         </div>
       </div>
       <div className={styles.flipBookPageDivider} />
+      <span className={styles.flipBookSectionLabel} data-section="journal">
+        Journal
+      </span>
       <textarea
         className={styles.flipBookPageTextarea}
         value={content}
@@ -452,7 +455,9 @@ const RightPageContent = ({ dateKey }: { dateKey: string }) => {
       <div className={styles.flipBookPageDivider} />
       <div className={styles.flipBookPageSections}>
         <div className={styles.flipBookSection}>
-          <span className={styles.flipBookSectionLabel}>✅ Tasks</span>
+          <span className={styles.flipBookSectionLabel} data-section="task">
+            ✅ Tasks
+          </span>
           {todoDocs.length === 0 ? (
             <span className={styles.flipBookPageEmpty}>No tasks</span>
           ) : (
@@ -461,7 +466,9 @@ const RightPageContent = ({ dateKey }: { dateKey: string }) => {
         </div>
 
         <div className={styles.flipBookSection}>
-          <span className={styles.flipBookSectionLabel}>📅 Meetings</span>
+          <span className={styles.flipBookSectionLabel} data-section="meeting">
+            📅 Meetings
+          </span>
           {meetingDocs.length === 0 ? (
             <span className={styles.flipBookPageEmpty}>No meetings</span>
           ) : (
