@@ -335,20 +335,23 @@ const SortedTaskList = ({
   const [docTasks, setDocTasks] = useState<
     Map<string, { store: any; tasks: TaskItem[] }>
   >(new Map());
-  const [setPropsVersion] = useState(0);
+
+  const [docProps, setDocProps] = useState<
+    Map<string, Record<string, string | undefined>>
+  >(new Map());
 
   useEffect(() => {
-    const map = new Map<string, { store: any; tasks: TaskItem[] }>();
+    const taskMap = new Map<string, { store: any; tasks: TaskItem[] }>();
     const cleanups: (() => void)[] = [];
     for (const doc of todoDocs) {
       try {
         const { doc: openedDoc, release } = docsService.open(doc.id);
         const store = openedDoc.blockSuiteDoc;
         store.load();
-        map.set(doc.id, { store, tasks: collectTasks(store) });
+        taskMap.set(doc.id, { store, tasks: collectTasks(store) });
         const sub = store.slots.blockUpdated.subscribe(() => {
-          map.set(doc.id, { store, tasks: collectTasks(store) });
-          setDocTasks(new Map(map));
+          taskMap.set(doc.id, { store, tasks: collectTasks(store) });
+          setDocTasks(new Map(taskMap));
         });
         cleanups.push(() => {
           sub.unsubscribe();
@@ -358,20 +361,34 @@ const SortedTaskList = ({
         // skip unavailable docs
       }
     }
-    setDocTasks(new Map(map));
+    setDocTasks(new Map(taskMap));
     return () => cleanups.forEach(fn => fn());
   }, [todoDocs, docsService]);
 
   useEffect(() => {
+    const propsMap = new Map<string, Record<string, string | undefined>>();
     const subs: Array<{ unsubscribe(): void }> = [];
     for (const doc of todoDocs) {
-      const sub = (doc.properties$ as any).subscribe(() =>
-        setPropsVersion(v => v + 1)
+      const update = (props: unknown) => {
+        propsMap.set(
+          doc.id,
+          (props ?? {}) as Record<string, string | undefined>
+        );
+        setDocProps(new Map(propsMap));
+      };
+      propsMap.set(
+        doc.id,
+        ((doc.properties$ as any).value ?? {}) as Record<
+          string,
+          string | undefined
+        >
       );
+      const sub = (doc.properties$ as any).subscribe(update);
       if (sub?.unsubscribe) subs.push(sub);
     }
+    setDocProps(new Map(propsMap));
     return () => subs.forEach(s => s.unsubscribe());
-  }, [todoDocs, setPropsVersion]);
+  }, [todoDocs]);
 
   const sortedTasks = useMemo(() => {
     const all: RichTask[] = [];
@@ -384,14 +401,9 @@ const SortedTaskList = ({
         all.push({ task, docRecord: doc, store: data.store, dateLabel });
       }
     }
-    const getProps = (r: RichTask) =>
-      ((r.docRecord.properties$ as any).value ?? {}) as Record<
-        string,
-        string | undefined
-      >;
     return [...all].sort((a, b) => {
-      const ap = getProps(a);
-      const bp = getProps(b);
+      const ap = docProps.get(a.docRecord.id) ?? {};
+      const bp = docProps.get(b.docRecord.id) ?? {};
       const ad = ap[`custom:task_${a.task.id}_deadline`] || 'zzzz';
       const bd = bp[`custom:task_${b.task.id}_deadline`] || 'zzzz';
       const apr =
@@ -404,8 +416,7 @@ const SortedTaskList = ({
         return apr !== bpr ? apr - bpr : ad < bd ? -1 : ad > bd ? 1 : 0;
       }
     });
-    // propsVersion is intentionally in deps to trigger re-sort on metadata changes
-  }, [docTasks, todoDocs, sortMode]);
+  }, [docTasks, todoDocs, sortMode, docProps]);
 
   return (
     <>

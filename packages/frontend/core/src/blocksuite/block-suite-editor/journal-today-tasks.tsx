@@ -58,80 +58,82 @@ const PRIORITY_OPTIONS = [
   { value: 'low', label: 'Low' },
 ] as const;
 
-// ── Synced metadata fields (Status / Priority / Deadline / Notes) ──────────
+// ── Per-task metadata (Status / Priority / Deadline / Notes) ──────────────
 
-const TodoMeta = ({ docRecord }: { docRecord: DocRecord }) => {
+const TaskWithMeta = ({
+  task,
+  docRecord,
+  onToggle,
+}: {
+  task: TaskItem;
+  docRecord: DocRecord;
+  onToggle: () => void;
+}) => {
   const properties = useLiveData(docRecord.properties$) as Record<
     string,
     string | undefined
   >;
-  const status = properties['custom:todo_status'] ?? '';
-  const priority = properties['custom:todo_priority'] ?? '';
-  const deadline = properties['custom:todo_deadline'] ?? '';
-  const notes = properties['custom:todo_notes'] ?? '';
+
+  const statusKey = `task_${task.id}_status`;
+  const priorityKey = `task_${task.id}_priority`;
+  const deadlineKey = `task_${task.id}_deadline`;
+  const notesKey = `task_${task.id}_notes`;
+
+  const status = properties[`custom:${statusKey}`] ?? '';
+  const priority = properties[`custom:${priorityKey}`] ?? '';
+  const deadline = properties[`custom:${deadlineKey}`] ?? '';
+  const notes = properties[`custom:${notesKey}`] ?? '';
 
   return (
-    <div className={styles.metaSection}>
-      <div className={styles.metaRow}>
-        <div className={styles.metaField}>
-          <span className={styles.metaLabel}>Status</span>
-          <select
-            className={styles.metaStatusSelect}
-            data-status={status}
-            value={status}
-            onChange={e =>
-              docRecord.setCustomProperty('todo_status', e.target.value)
-            }
-          >
-            {STATUS_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className={styles.metaField}>
-          <span className={styles.metaLabel}>Priority</span>
-          <select
-            className={styles.metaPrioritySelect}
-            data-priority={priority}
-            value={priority}
-            onChange={e =>
-              docRecord.setCustomProperty('todo_priority', e.target.value)
-            }
-          >
-            {PRIORITY_OPTIONS.map(opt => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div className={styles.metaRow}>
-        <div className={styles.metaField}>
-          <span className={styles.metaLabel}>Deadline</span>
-          <input
-            type="date"
-            className={styles.metaDateInput}
-            value={deadline}
-            onChange={e =>
-              docRecord.setCustomProperty('todo_deadline', e.target.value)
-            }
-          />
-        </div>
-        <div className={styles.metaField}>
-          <span className={styles.metaLabel}>Notes</span>
-          <input
-            type="text"
-            className={styles.metaNotesInput}
-            value={notes}
-            placeholder="Add notes…"
-            onChange={e =>
-              docRecord.setCustomProperty('todo_notes', e.target.value)
-            }
-          />
-        </div>
+    <div className={styles.taskWithMeta}>
+      <label className={styles.taskRow}>
+        <Checkbox checked={task.checked} onChange={onToggle} />
+        <span className={styles.taskText} data-checked={task.checked}>
+          {task.text}
+        </span>
+      </label>
+      <div className={styles.taskMetaRow}>
+        <select
+          className={styles.metaStatusSelect}
+          data-status={status}
+          value={status}
+          onChange={e => docRecord.setCustomProperty(statusKey, e.target.value)}
+        >
+          {STATUS_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className={styles.metaPrioritySelect}
+          data-priority={priority}
+          value={priority}
+          onChange={e =>
+            docRecord.setCustomProperty(priorityKey, e.target.value)
+          }
+        >
+          {PRIORITY_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+        <input
+          type="date"
+          className={styles.taskMetaDate}
+          value={deadline}
+          onChange={e =>
+            docRecord.setCustomProperty(deadlineKey, e.target.value)
+          }
+        />
+        <input
+          type="text"
+          className={styles.taskMetaNotes}
+          value={notes}
+          placeholder="Notes…"
+          onChange={e => docRecord.setCustomProperty(notesKey, e.target.value)}
+        />
       </div>
     </div>
   );
@@ -282,17 +284,26 @@ export const JournalTodayTasks = ({ page }: { page: Store }) => {
               </div>
             ) : null}
           </div>
-          {tasks.map(task => (
-            <label key={task.id} className={styles.taskRow}>
-              <Checkbox
-                checked={task.checked}
-                onChange={() => toggleTask(task)}
+          {tasks.map(task =>
+            todoDocRecord ? (
+              <TaskWithMeta
+                key={task.id}
+                task={task}
+                docRecord={todoDocRecord}
+                onToggle={() => toggleTask(task)}
               />
-              <span className={styles.taskText} data-checked={task.checked}>
-                {task.text}
-              </span>
-            </label>
-          ))}
+            ) : (
+              <label key={task.id} className={styles.taskRow}>
+                <Checkbox
+                  checked={task.checked}
+                  onChange={() => toggleTask(task)}
+                />
+                <span className={styles.taskText} data-checked={task.checked}>
+                  {task.text}
+                </span>
+              </label>
+            )
+          )}
           <div className={styles.addRow}>
             <Checkbox checked={false} disabled />
             <input
@@ -308,7 +319,6 @@ export const JournalTodayTasks = ({ page }: { page: Store }) => {
               data-testid="journal-today-tasks-input"
             />
           </div>
-          {todoDocRecord && <TodoMeta docRecord={todoDocRecord} />}
         </div>
       </div>
     </div>

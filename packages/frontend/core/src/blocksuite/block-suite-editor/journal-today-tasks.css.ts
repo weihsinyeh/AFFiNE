@@ -97,6 +97,62 @@ export const openButton = style({
   },
 });
 
+// ── Per-task metadata row ──────────────────────────────────────────────────
+
+export const taskWithMeta = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+});
+
+export const taskMetaRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  paddingLeft: 26,
+  paddingBottom: 3,
+  flexWrap: 'wrap',
+});
+
+export const taskMetaDate = style({
+  border: `1px solid ${cssVar('borderColor')}`,
+  borderRadius: 4,
+  padding: '1px 4px',
+  fontSize: 10,
+  color: cssVarV2('text/primary'),
+  background: 'transparent',
+  outline: 'none',
+  selectors: {
+    '&:focus': { borderColor: cssVar('primaryColor') },
+    '&::-webkit-calendar-picker-indicator': {
+      opacity: 0.5,
+      cursor: 'pointer',
+      width: 10,
+      height: 10,
+    },
+  },
+});
+
+export const taskMetaNotes = style({
+  flex: 1,
+  minWidth: 50,
+  border: `1px solid transparent`,
+  borderRadius: 4,
+  padding: '1px 4px',
+  fontSize: 10,
+  color: cssVarV2('text/primary'),
+  background: 'transparent',
+  outline: 'none',
+  selectors: {
+    '&::placeholder': { color: cssVar('placeholderColor') },
+    '&:hover': { borderColor: cssVar('borderColor') },
+    '&:focus': {
+      borderColor: cssVar('primaryColor'),
+      background: cssVarV2('layer/background/primary'),
+    },
+  },
+});
+
 // ── Metadata fields (Status / Priority / Deadline / Notes) ─────────────────
 
 export const metaSection = style({
