@@ -866,6 +866,12 @@ export const fullCalendarAgendaMore = style({
 // snap-back / completion. No keyframe animations — the drag interaction
 // updates rotateY in real time via React state.
 
+/**
+ * Notebook paper tone: a subtle warm off-white, like recycled paper —
+ * noticeably not pure white, but far from yellow.
+ */
+const flipBookPaperColor = '#f8f4e6';
+
 export const flipBookOverlay = style({
   width: '100%',
   flex: '1 1 auto',
@@ -937,7 +943,7 @@ export const flipBookStaticPage = style({
   minWidth: 0,
   height: '100%',
   overflow: 'hidden',
-  background: cssVarV2('layer/background/secondary'),
+  background: flipBookPaperColor,
   position: 'relative',
 });
 
@@ -1003,7 +1009,7 @@ export const flipBookFlipFront = style({
   position: 'absolute',
   inset: 0,
   backfaceVisibility: 'hidden',
-  background: cssVarV2('layer/background/secondary'),
+  background: flipBookPaperColor,
   overflow: 'hidden',
 });
 
@@ -1012,7 +1018,7 @@ export const flipBookFlipBack = style({
   position: 'absolute',
   inset: 0,
   backfaceVisibility: 'hidden',
-  background: cssVarV2('layer/background/secondary'),
+  background: flipBookPaperColor,
   overflow: 'hidden',
   transform: 'rotateY(180deg)',
 });
@@ -1039,7 +1045,7 @@ export const flipBookPageDateBadge = style({
   gap: 6,
   marginBottom: 6,
   // Cover the lines in the date area
-  background: cssVarV2('layer/background/secondary'),
+  background: flipBookPaperColor,
   paddingBottom: 4,
 });
 
