@@ -335,7 +335,7 @@ const SortedTaskList = ({
   const [docTasks, setDocTasks] = useState<
     Map<string, { store: any; tasks: TaskItem[] }>
   >(new Map());
-  const [propsVersion, setPropsVersion] = useState(0);
+  const [setPropsVersion] = useState(0);
 
   useEffect(() => {
     const map = new Map<string, { store: any; tasks: TaskItem[] }>();
@@ -371,7 +371,7 @@ const SortedTaskList = ({
       if (sub?.unsubscribe) subs.push(sub);
     }
     return () => subs.forEach(s => s.unsubscribe());
-  }, [todoDocs]);
+  }, [todoDocs, setPropsVersion]);
 
   const sortedTasks = useMemo(() => {
     const all: RichTask[] = [];
@@ -405,7 +405,7 @@ const SortedTaskList = ({
       }
     });
     // propsVersion is intentionally in deps to trigger re-sort on metadata changes
-  }, [docTasks, todoDocs, sortMode, propsVersion]);
+  }, [docTasks, todoDocs, sortMode]);
 
   return (
     <>
