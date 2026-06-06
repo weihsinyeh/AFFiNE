@@ -649,9 +649,11 @@ const FullCalendarDayCell = ({
 
   const handleCreateDoc = useCallback(
     (type: 'todo' | 'meeting') => {
-      // Todo: one per day — navigate to existing if present.
+      // Todo: one per day — if it already exists, go to the day's journal
+      // where the "Today's Tasks" section surfaces it.
       if (type === 'todo' && todoDocs.length > 0) {
-        workbench.openDoc(todoDocs[0].id, { at: 'active' });
+        const journalDoc = journalService.ensureJournalByDate(dateKey);
+        workbench.openDoc(journalDoc.id, { at: 'active' });
         return;
       }
       // Meeting: multiple allowed — always create a new one with a sequence number.
@@ -668,24 +670,9 @@ const FullCalendarDayCell = ({
         docProps:
           type === 'todo'
             ? {
+                // tasks are added from the journal's "Today's Tasks"
+                // section — start with no placeholder items
                 paragraph: { type: 'h3', text: new Text("Today's Tasks") },
-                onStoreLoad: (store, { noteId }) => {
-                  store.addBlock(
-                    'affine:list',
-                    { type: 'todo', text: new Text('') },
-                    noteId
-                  );
-                  store.addBlock(
-                    'affine:list',
-                    { type: 'todo', text: new Text('') },
-                    noteId
-                  );
-                  store.addBlock(
-                    'affine:list',
-                    { type: 'todo', text: new Text('') },
-                    noteId
-                  );
-                },
               }
             : {
                 paragraph: { type: 'h3', text: new Text('Meeting Notes') },
@@ -715,8 +702,15 @@ const FullCalendarDayCell = ({
       });
       const journalDoc = journalService.ensureJournalByDate(dateKey);
       journalService.setJournalDate(newDoc.id, dateKey);
-      docsService.addLinkedDoc(journalDoc.id, newDoc.id).catch(console.error);
-      workbench.openDoc(newDoc.id, { at: 'active' });
+      if (type === 'todo') {
+        // todos surface in the journal's "Today's Tasks" section — open the
+        // journal instead of the raw todo doc, and don't insert a
+        // linked-doc paragraph into the journal body
+        workbench.openDoc(journalDoc.id, { at: 'active' });
+      } else {
+        docsService.addLinkedDoc(journalDoc.id, newDoc.id).catch(console.error);
+        workbench.openDoc(newDoc.id, { at: 'active' });
+      }
     },
     [
       dateKey,
