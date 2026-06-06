@@ -176,6 +176,24 @@ export class AIChatInput extends SignalWatcher(
         margin-left: auto;
       }
 
+      .smart-todo-indicator {
+        display: flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background-color: #1e96eb14;
+        color: ${unsafeCSSVarV2('icon/activated')};
+        font-size: 12px;
+        line-height: 20px;
+        font-weight: 500;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+
+      .smart-todo-indicator:hover {
+        background-color: #1e96eb29;
+      }
+
       .chat-input-icon:hover {
         background-color: ${unsafeCSSVarV2('layer/background/hoverOverlay')};
       }
@@ -629,6 +647,17 @@ export class AIChatInput extends SignalWatcher(
               : undefined}
           ></ai-chat-add-context>
         </div>
+        ${this.runtime?.supportsSmartTodos &&
+        this.runtimeSnapshot?.composer.smartTodo
+          ? html`<div
+              class="smart-todo-indicator"
+              title="智慧增加todo list 模式開啟中，點擊關閉"
+              data-testid="smart-todo-indicator"
+              @click=${this._toggleSmartTodo}
+            >
+              ☑ 智慧增加todo list
+            </div>`
+          : nothing}
         <div class="chat-input-footer-spacer"></div>
         <chat-input-preference
           .session=${this.session}

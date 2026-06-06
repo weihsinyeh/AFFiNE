@@ -173,10 +173,16 @@ export type AIChatSnapshot = {
   };
 };
 
+export const SMART_TODO_MODE_STORAGE_KEY = 'AISmartTodoMode';
+
 export function createInitialComposerState(): AIChatComposerState {
   return {
     text: '',
     attachments: [],
+    // restore the "智慧增加todo list" toggle across navigations/reloads
+    smartTodo:
+      typeof localStorage !== 'undefined' &&
+      localStorage.getItem(SMART_TODO_MODE_STORAGE_KEY) === 'true',
     context: {
       contextId: null,
       items: [],

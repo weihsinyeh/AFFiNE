@@ -21,6 +21,7 @@ import {
   createDraftTab,
   createInitialComposerState,
   sessionToTab,
+  SMART_TODO_MODE_STORAGE_KEY,
 } from './state';
 
 type RuntimeOptions = {
@@ -184,6 +185,14 @@ export class AIChatRuntime {
         return;
       case 'setSmartTodo':
         this.updateComposer({ smartTodo: action.value });
+        try {
+          localStorage.setItem(
+            SMART_TODO_MODE_STORAGE_KEY,
+            String(action.value)
+          );
+        } catch {
+          // storage unavailable — the toggle just won't persist
+        }
         return;
       case 'addAttachment':
         this.updateComposer({
