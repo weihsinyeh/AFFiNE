@@ -235,6 +235,9 @@ export const JournalFlipBook = ({
   onClose: () => void;
   onDateSelect: (date: string) => void;
 }) => {
+  const journalService = useService(JournalService);
+  const allJournalDates = useLiveData(journalService.allJournalDates$);
+
   const [currentDay, setCurrentDay] = useState(
     selectedDate.format('YYYY-MM-DD')
   );
@@ -248,9 +251,32 @@ export const JournalFlipBook = ({
     if (!isFlipping) setCurrentDay(d);
   }, [selectedDate, isFlipping]);
 
+  // Find nearest journal day strictly before / after currentDay.
+  const prevJournalDay = useMemo(() => {
+    const sorted = Array.from(allJournalDates).sort((a, b) =>
+      a.localeCompare(b)
+    );
+    // Walk backward from the end to find the largest date < currentDay
+    for (let i = sorted.length - 1; i >= 0; i--) {
+      if (sorted[i] < currentDay) return sorted[i];
+    }
+    return null;
+  }, [allJournalDates, currentDay]);
+
+  const nextJournalDay = useMemo(() => {
+    const sorted = Array.from(allJournalDates).sort((a, b) =>
+      a.localeCompare(b)
+    );
+    // Walk forward from the start to find the smallest date > currentDay
+    for (const date of sorted) {
+      if (date > currentDay) return date;
+    }
+    return null;
+  }, [allJournalDates, currentDay]);
+
   const flipTo = useCallback(
-    (targetDay: string, dir: 'forward' | 'backward') => {
-      if (isFlipping) return;
+    (targetDay: string | null, dir: 'forward' | 'backward') => {
+      if (isFlipping || !targetDay) return;
       setNextDay(targetDay);
       setFlipDir(dir);
       setIsFlipping(true);
@@ -271,9 +297,6 @@ export const JournalFlipBook = ({
     },
     [nextDay, onDateSelect]
   );
-
-  const yesterday = dayjs(currentDay).subtract(1, 'day').format('YYYY-MM-DD');
-  const tomorrow = dayjs(currentDay).add(1, 'day').format('YYYY-MM-DD');
 
   // During animation, pre-load the destination day's content on the static page
   // that will be revealed after the flip.
@@ -306,18 +329,19 @@ export const JournalFlipBook = ({
             className={clsx(
               styles.flipBookStaticPage,
               styles.flipBookStaticLeft,
-              !isFlipping && styles.flipBookPageClickable
+              !isFlipping && prevJournalDay && styles.flipBookPageClickable
             )}
-            onClick={() => !isFlipping && flipTo(yesterday, 'backward')}
+            onClick={() => !isFlipping && flipTo(prevJournalDay, 'backward')}
             role="button"
-            tabIndex={isFlipping ? -1 : 0}
-            aria-label="Go to yesterday"
+            tabIndex={isFlipping || !prevJournalDay ? -1 : 0}
+            aria-label="Go to previous journal day"
+            aria-disabled={!prevJournalDay}
             onKeyDown={e => {
               if (
                 !isFlipping &&
                 (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowLeft')
               )
-                flipTo(yesterday, 'backward');
+                flipTo(prevJournalDay, 'backward');
             }}
           >
             <LeftPageContent dateKey={staticLeftDay} />
@@ -331,18 +355,19 @@ export const JournalFlipBook = ({
             className={clsx(
               styles.flipBookStaticPage,
               styles.flipBookStaticRight,
-              !isFlipping && styles.flipBookPageClickable
+              !isFlipping && nextJournalDay && styles.flipBookPageClickable
             )}
-            onClick={() => !isFlipping && flipTo(tomorrow, 'forward')}
+            onClick={() => !isFlipping && flipTo(nextJournalDay, 'forward')}
             role="button"
-            tabIndex={isFlipping ? -1 : 0}
-            aria-label="Go to tomorrow"
+            tabIndex={isFlipping || !nextJournalDay ? -1 : 0}
+            aria-label="Go to next journal day"
+            aria-disabled={!nextJournalDay}
             onKeyDown={e => {
               if (
                 !isFlipping &&
                 (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight')
               )
-                flipTo(tomorrow, 'forward');
+                flipTo(nextJournalDay, 'forward');
             }}
           >
             <RightPageContent dateKey={staticRightDay} />
@@ -383,9 +408,9 @@ export const JournalFlipBook = ({
         <div className={styles.flipBookNavRow}>
           <button
             className={styles.flipBookNavBtn}
-            disabled={isFlipping}
-            onClick={() => flipTo(yesterday, 'backward')}
-            aria-label="Previous day"
+            disabled={isFlipping || !prevJournalDay}
+            onClick={() => flipTo(prevJournalDay, 'backward')}
+            aria-label="Previous journal day"
           >
             <ArrowLeftSmallIcon />
           </button>
@@ -394,9 +419,9 @@ export const JournalFlipBook = ({
           </span>
           <button
             className={styles.flipBookNavBtn}
-            disabled={isFlipping}
-            onClick={() => flipTo(tomorrow, 'forward')}
-            aria-label="Next day"
+            disabled={isFlipping || !nextJournalDay}
+            onClick={() => flipTo(nextJournalDay, 'forward')}
+            aria-label="Next journal day"
           >
             <ArrowRightSmallIcon />
           </button>
