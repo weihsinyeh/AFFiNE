@@ -8,6 +8,7 @@ export const mainContainer = style({
   flexDirection: 'column',
   flex: 1,
   overflow: 'hidden',
+  position: 'relative',
   borderTop: `0.5px solid transparent`,
   transition: 'border-color 0.2s',
   selectors: {
@@ -16,6 +17,35 @@ export const mainContainer = style({
     },
     '&[data-has-scroll-top="true"]': {
       borderColor: cssVar('borderColor'),
+    },
+  },
+});
+
+export const flipBookMainBtn = style({
+  position: 'absolute',
+  top: 12,
+  right: 16,
+  zIndex: 10,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 5,
+  padding: '5px 10px 5px 8px',
+  borderRadius: 8,
+  border: `1px solid ${cssVar('borderColor')}`,
+  background: cssVarV2('layer/background/primary'),
+  color: cssVar('iconColor'),
+  fontSize: 12,
+  fontWeight: 500,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  transition: 'all 0.15s',
+  boxShadow: '0 1px 4px rgba(0,0,0,0.10)',
+  selectors: {
+    '&:hover': {
+      background: cssVar('primaryColor'),
+      borderColor: cssVar('primaryColor'),
+      color: cssVar('pureWhite'),
+      boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
     },
   },
 });

@@ -1196,8 +1196,7 @@ export const EditorJournalPanel = () => {
           />
         </div>
       ) : (
-        // desktop: the tagged full-month view lives directly in the panel,
-        // below the sidebar tab icons — no expand/collapse
+        // desktop: the tagged full-month view lives directly in the panel
         <FullMonthCalendarView
           inline
           selectedDate={selectedDate}

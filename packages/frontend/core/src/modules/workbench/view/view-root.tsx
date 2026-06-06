@@ -8,7 +8,6 @@ import {
   UNSAFE_RouteContext,
 } from 'react-router-dom';
 
-import { withPageFlipTransition } from '../../../components/page-transition';
 import type { View } from '../entities/view';
 
 export const ViewRoot = ({
@@ -36,10 +35,8 @@ export const ViewRoot = ({
 
     if (firstNavigationRef.current) {
       firstNavigationRef.current = false;
-      doNavigate();
-    } else {
-      withPageFlipTransition(doNavigate);
     }
+    doNavigate();
   }, [location, view, viewRouter]);
 
   // https://github.com/remix-run/react-router/issues/7375#issuecomment-975431736

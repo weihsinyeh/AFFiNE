@@ -1,6 +1,11 @@
 import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
-import { globalStyle, style, styleVariants } from '@vanilla-extract/css';
+import {
+  globalStyle,
+  keyframes,
+  style,
+  styleVariants,
+} from '@vanilla-extract/css';
 
 const interactive = style({
   position: 'relative',
@@ -99,6 +104,37 @@ export const journalPanel = style({
   flexDirection: 'column',
   alignItems: 'stretch',
   overflow: 'hidden',
+  position: 'relative', // needed for the absolute-positioned flip-book toggle
+});
+
+/** Floating book icon that sits in the top-right corner of the journal panel. */
+export const flipBookToggleBtn = style({
+  position: 'absolute',
+  top: 8,
+  right: 8,
+  zIndex: 3,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  padding: '3px 8px 3px 6px',
+  borderRadius: 6,
+  border: `1px solid ${cssVar('borderColor')}`,
+  background: cssVarV2('layer/background/primary'),
+  color: cssVar('iconColor'),
+  fontSize: 11,
+  fontWeight: 500,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  transition: 'all 0.15s',
+  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+  selectors: {
+    '&:hover': {
+      background: cssVar('primaryColor'),
+      borderColor: cssVar('primaryColor'),
+      color: cssVar('pureWhite'),
+      boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+    },
+  },
 });
 export const dailyCount = style({
   height: 0,
@@ -827,4 +863,342 @@ export const fullCalendarAgendaMore = style({
   lineHeight: '16px',
   color: cssVar('textSecondaryColor'),
   padding: '1px 4px',
+});
+
+// ── 3-D Flip Book ──────────────────────────────────────────────────────────
+//
+// Using CSS @keyframes (not transition) so the animation starts automatically
+// the moment the flip element is mounted, without a two-step state trick.
+
+const flipForwardAnim = keyframes({
+  from: { transform: 'rotateY(0deg)' },
+  to: { transform: 'rotateY(-180deg)' },
+});
+
+const flipBackwardAnim = keyframes({
+  from: { transform: 'rotateY(0deg)' },
+  to: { transform: 'rotateY(180deg)' },
+});
+
+export const flipBookOverlay = style({
+  width: '100%',
+  flex: '1 1 auto',
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  padding: '8px 8px 12px',
+  boxSizing: 'border-box',
+});
+
+export const flipBookHeader = style({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  padding: '0 4px',
+  height: 36,
+  marginBottom: 8,
+});
+
+export const flipBookTitle = style({
+  fontSize: 13,
+  fontWeight: 600,
+  color: cssVarV2.text.primary,
+  letterSpacing: '0.2px',
+});
+
+export const flipBookBody = style({
+  flex: '1 1 auto',
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 14,
+});
+
+/**
+ * The book spread container. Uses CSS perspective so that the flip element
+ * has a realistic 3-D turn effect.
+ *
+ * Layout:
+ *   [left page (50%)] [spine (4px)] [right page (50%)]
+ *
+ * The flip element is absolutely positioned and covers either the left or
+ * right half depending on the direction.
+ */
+export const flipBookContainer = style({
+  position: 'relative',
+  width: '90%',
+  maxWidth: 760,
+  aspectRatio: '16 / 11',
+  display: 'flex',
+  flexDirection: 'row',
+  perspective: '1200px',
+  // book drop-shadow
+  filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.22))',
+});
+
+export const flipBookStaticPage = style({
+  flex: '1 1 0',
+  minWidth: 0,
+  height: '100%',
+  overflow: 'hidden',
+  background: cssVarV2('layer/background/secondary'),
+  position: 'relative',
+});
+
+export const flipBookStaticLeft = style({
+  borderRadius: '4px 0 0 4px',
+  boxShadow: '-2px 0 6px rgba(0,0,0,0.06) inset',
+});
+
+export const flipBookStaticRight = style({
+  borderRadius: '0 4px 4px 0',
+  boxShadow: '2px 0 6px rgba(0,0,0,0.06) inset',
+});
+
+export const flipBookPageClickable = style({
+  cursor: 'pointer',
+  selectors: {
+    '&:hover::after': {
+      content: '""',
+      position: 'absolute',
+      inset: 0,
+      background: 'rgba(0,0,0,0.03)',
+      pointerEvents: 'none',
+    },
+  },
+});
+
+export const flipBookSpine = style({
+  flexShrink: 0,
+  width: 4,
+  height: '100%',
+  background: `linear-gradient(to right, rgba(0,0,0,0.18), rgba(0,0,0,0.04) 40%, rgba(0,0,0,0.04) 60%, rgba(0,0,0,0.18))`,
+  zIndex: 2,
+  position: 'relative',
+});
+
+/**
+ * Base for the flip element. Uses CSS animation (@keyframes) so the turn
+ * starts immediately on mount — no two-step state trick needed.
+ */
+export const flipBookFlipEl = style({
+  position: 'absolute',
+  top: 0,
+  height: '100%',
+  width: 'calc(50% - 2px)',
+  transformStyle: 'preserve-3d',
+  zIndex: 5,
+});
+
+/** Forward flip: right page turns left → tomorrow. Pivot = book spine. */
+export const flipBookFlipElForward = style({
+  left: 'calc(50% + 2px)',
+  transformOrigin: 'left center',
+  animation: `${flipForwardAnim} 0.65s cubic-bezier(0.645, 0.045, 0.355, 1) forwards`,
+});
+
+/** Backward flip: left page turns right → yesterday. Pivot = book spine. */
+export const flipBookFlipElBackward = style({
+  left: 0,
+  transformOrigin: 'right center',
+  animation: `${flipBackwardAnim} 0.65s cubic-bezier(0.645, 0.045, 0.355, 1) forwards`,
+});
+
+/** Front face of the flip element (visible at the start of the turn). */
+export const flipBookFlipFront = style({
+  position: 'absolute',
+  inset: 0,
+  backfaceVisibility: 'hidden',
+  background: cssVarV2('layer/background/secondary'),
+  overflow: 'hidden',
+});
+
+/** Back face of the flip element (visible when fully turned). */
+export const flipBookFlipBack = style({
+  position: 'absolute',
+  inset: 0,
+  backfaceVisibility: 'hidden',
+  background: cssVarV2('layer/background/secondary'),
+  overflow: 'hidden',
+  transform: 'rotateY(180deg)',
+});
+
+// ── Page inner content ─────────────────────────────────────────────────────
+
+export const flipBookPageInner = style({
+  width: '100%',
+  height: '100%',
+  padding: '10px 10px 8px',
+  boxSizing: 'border-box',
+  display: 'flex',
+  flexDirection: 'column',
+  // Lined-paper effect starting below the date badge (~68px)
+  backgroundImage: `repeating-linear-gradient(transparent, transparent 21px, ${cssVar('borderColor')} 22px)`,
+  backgroundSize: '100% 22px',
+  backgroundPosition: '0 70px',
+});
+
+export const flipBookPageDateBadge = style({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  marginBottom: 6,
+  // Cover the lines in the date area
+  background: cssVarV2('layer/background/secondary'),
+  paddingBottom: 4,
+});
+
+export const flipBookPageDayNum = style({
+  fontSize: 34,
+  fontWeight: 700,
+  lineHeight: 1,
+  color: cssVarV2.text.primary,
+  fontVariantNumeric: 'tabular-nums',
+  minWidth: 42,
+  textAlign: 'center',
+  flexShrink: 0,
+});
+
+export const flipBookPageDateMeta = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 1,
+});
+
+export const flipBookPageMonthYear = style({
+  fontSize: 10,
+  fontWeight: 600,
+  color: cssVarV2.text.secondary,
+  textTransform: 'uppercase',
+  letterSpacing: '0.4px',
+  lineHeight: 1.3,
+});
+
+export const flipBookPageWeekday = style({
+  fontSize: 10,
+  color: cssVar('textSecondaryColor'),
+  lineHeight: 1.3,
+});
+
+export const flipBookPageDivider = style({
+  flexShrink: 0,
+  height: 1,
+  background: cssVar('borderColor'),
+  marginBottom: 6,
+  // Cover lines that would otherwise show at this row
+  position: 'relative',
+  zIndex: 1,
+  backgroundColor: cssVar('borderColor'),
+});
+
+export const flipBookPageText = style({
+  flex: '1 1 auto',
+  fontSize: 10,
+  lineHeight: '22px',
+  color: cssVarV2.text.primary,
+  overflow: 'hidden',
+  wordBreak: 'break-word',
+  whiteSpace: 'pre-wrap',
+});
+
+export const flipBookPageEmpty = style({
+  color: cssVar('textSecondaryColor'),
+  fontStyle: 'italic',
+  fontSize: 10,
+  lineHeight: '22px',
+});
+
+export const flipBookPageSections = style({
+  flex: '1 1 auto',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  overflow: 'hidden',
+});
+
+export const flipBookSection = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 3,
+});
+
+export const flipBookSectionLabel = style({
+  fontSize: 10,
+  fontWeight: 600,
+  color: cssVarV2.text.secondary,
+  textTransform: 'uppercase',
+  letterSpacing: '0.4px',
+  lineHeight: '22px',
+});
+
+export const flipBookList = style({
+  listStyle: 'none',
+  margin: 0,
+  padding: 0,
+  display: 'flex',
+  flexDirection: 'column',
+});
+
+export const flipBookListItem = style({
+  fontSize: 10,
+  lineHeight: '22px',
+  color: cssVarV2.text.primary,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  selectors: {
+    '&::before': {
+      content: '"• "',
+      color: cssVar('textSecondaryColor'),
+    },
+  },
+});
+
+// ── Navigation ─────────────────────────────────────────────────────────────
+
+export const flipBookNavRow = style({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  width: '100%',
+  maxWidth: 340,
+  padding: '0 2px',
+});
+
+export const flipBookNavBtn = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 30,
+  height: 30,
+  borderRadius: '50%',
+  border: `1px solid ${cssVar('borderColor')}`,
+  background: 'transparent',
+  color: cssVar('iconColor'),
+  cursor: 'pointer',
+  transition: 'all 0.15s',
+  flexShrink: 0,
+  selectors: {
+    '&:hover:not(:disabled)': {
+      background: cssVar('primaryColor'),
+      borderColor: cssVar('primaryColor'),
+      color: cssVar('pureWhite'),
+    },
+    '&:disabled': {
+      opacity: 0.35,
+      cursor: 'not-allowed',
+    },
+  },
+});
+
+export const flipBookDateLabel = style({
+  fontSize: 12,
+  fontWeight: 500,
+  color: cssVarV2.text.secondary,
+  userSelect: 'none',
 });

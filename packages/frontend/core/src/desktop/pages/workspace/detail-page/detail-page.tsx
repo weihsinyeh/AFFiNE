@@ -57,6 +57,7 @@ import {
   useServices,
 } from '@toeverything/infra';
 import clsx from 'clsx';
+import dayjs from 'dayjs';
 import { nanoid } from 'nanoid';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
@@ -70,6 +71,10 @@ import { EditorAdapterPanel } from './tabs/adapter';
 import { EditorAnalyticsPanel } from './tabs/analytics';
 import { EditorChatPanel } from './tabs/chat';
 import { EditorJournalPanel } from './tabs/journal';
+import {
+  BookOpenSvgIcon,
+  JournalFlipBook,
+} from './tabs/journal/journal-flip-book';
 import { EditorJournalAIPanel } from './tabs/journal-ai';
 import { EditorOutlinePanel } from './tabs/outline';
 
@@ -187,7 +192,24 @@ const DetailPageImpl = memo(function DetailPageImpl() {
   useRegisterBlocksuiteEditorCommands(editor, isActiveView);
 
   const journalService = useService(JournalService);
-  const isJournal = !!useLiveData(journalService.journalDate$(doc.id));
+  const journalDateStr = useLiveData(journalService.journalDate$(doc.id));
+  const isJournal = !!journalDateStr;
+  const journalDate = journalDateStr ? dayjs(journalDateStr) : dayjs();
+
+  const [showFlipBook, setShowFlipBook] = useState(false);
+
+  const handleFlipBookDateSelect = useCallback(
+    (date: string) => {
+      const docs = journalService.journalsByDate$(date).value;
+      const journalDoc = docs.find(d => (d.meta$.value.title ?? '') === date);
+      if (journalDoc) {
+        workbench.openDoc(journalDoc.id, { at: 'active' });
+      } else {
+        workbench.open(`/journals?date=${date}`, { at: 'active' });
+      }
+    },
+    [journalService, workbench]
+  );
 
   const onLoad = useCallback(
     (editorContainer: AffineEditorContainer) => {
@@ -334,36 +356,56 @@ const DetailPageImpl = memo(function DetailPageImpl() {
           data-dynamic-top-border={BUILD_CONFIG.isElectron}
           data-has-scroll-top={hasScrollTop}
         >
-          {/* Add a key to force rerender when page changed, to avoid error boundary persisting. */}
-          <AffineErrorBoundary key={doc.id}>
-            <TopTip pageId={doc.id} workspace={workspace} />
-            <Scrollable.Root>
-              <Scrollable.Viewport
-                onScroll={handleScroll}
-                ref={scrollViewportRef}
-                data-dragging={dragging}
-                className={clsx(
-                  'affine-page-viewport',
-                  styles.affineDocViewport,
-                  styles.editorContainer,
-                  { [styles.pageModeViewportContentBox]: mode === 'page' }
-                )}
-              >
-                <PageDetailEditor onLoad={onLoad} readonly={readonly} />
-              </Scrollable.Viewport>
-              <Scrollable.Scrollbar
-                className={clsx({
-                  [styles.scrollbar]: !appSettings.clientBorder,
-                })}
-              />
-            </Scrollable.Root>
-            <EditorOutlineViewer
-              editor={editorContainer?.host ?? null}
-              show={mode === 'page' && !isSideBarOpen}
-              openOutlinePanel={openOutlinePanel}
+          {isJournal && !showFlipBook && (
+            <button
+              className={styles.flipBookMainBtn}
+              aria-label="Open journal flip book"
+              onClick={() => setShowFlipBook(true)}
+            >
+              <BookOpenSvgIcon />
+              Flip
+            </button>
+          )}
+          {isJournal && showFlipBook ? (
+            <JournalFlipBook
+              selectedDate={journalDate}
+              onClose={() => setShowFlipBook(false)}
+              onDateSelect={handleFlipBookDateSelect}
             />
-          </AffineErrorBoundary>
-          {isInTrash ? <TrashPageFooter /> : null}
+          ) : (
+            <>
+              {/* Add a key to force rerender when page changed, to avoid error boundary persisting. */}
+              <AffineErrorBoundary key={doc.id}>
+                <TopTip pageId={doc.id} workspace={workspace} />
+                <Scrollable.Root>
+                  <Scrollable.Viewport
+                    onScroll={handleScroll}
+                    ref={scrollViewportRef}
+                    data-dragging={dragging}
+                    className={clsx(
+                      'affine-page-viewport',
+                      styles.affineDocViewport,
+                      styles.editorContainer,
+                      { [styles.pageModeViewportContentBox]: mode === 'page' }
+                    )}
+                  >
+                    <PageDetailEditor onLoad={onLoad} readonly={readonly} />
+                  </Scrollable.Viewport>
+                  <Scrollable.Scrollbar
+                    className={clsx({
+                      [styles.scrollbar]: !appSettings.clientBorder,
+                    })}
+                  />
+                </Scrollable.Root>
+                <EditorOutlineViewer
+                  editor={editorContainer?.host ?? null}
+                  show={mode === 'page' && !isSideBarOpen}
+                  openOutlinePanel={openOutlinePanel}
+                />
+              </AffineErrorBoundary>
+              {isInTrash ? <TrashPageFooter /> : null}
+            </>
+          )}
         </div>
       </ViewBody>
 
