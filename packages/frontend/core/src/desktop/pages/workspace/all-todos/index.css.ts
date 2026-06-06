@@ -175,6 +175,20 @@ export const th = style({
   },
 });
 
+export const dateHeaderRow = style({
+  background: cssVarV2('layer/background/secondary'),
+});
+
+export const dateHeaderCell = style({
+  padding: '5px 12px',
+});
+
+export const addTaskRow = style({});
+
+export const addTaskCell = style({
+  padding: '3px 12px 8px',
+});
+
 export const todoRow = style({
   selectors: {
     '&:hover': {
