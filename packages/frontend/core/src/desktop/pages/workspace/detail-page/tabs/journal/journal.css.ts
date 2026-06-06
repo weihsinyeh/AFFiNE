@@ -1167,6 +1167,36 @@ export const flipBookSectionLabel = style({
   },
 });
 
+export const flipBookSectionHeader = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  flexShrink: 0,
+});
+
+export const flipBookSectionAddBtn = style({
+  flexShrink: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '1.4em',
+  height: '1.4em',
+  border: 'none',
+  borderRadius: '3px',
+  background: 'transparent',
+  color: flipBookTextMuted,
+  fontSize: '1em',
+  lineHeight: 1,
+  cursor: 'pointer',
+  padding: 0,
+  selectors: {
+    '&:hover': {
+      background: 'rgba(0,0,0,0.07)',
+      color: flipBookTextPrimary,
+    },
+  },
+});
+
 export const flipBookList = style({
   listStyle: 'none',
   margin: 0,

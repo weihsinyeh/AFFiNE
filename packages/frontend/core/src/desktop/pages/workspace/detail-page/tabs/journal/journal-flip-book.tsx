@@ -421,6 +421,7 @@ const EditableTodoContent = ({ docRecord }: { docRecord: DocRecord }) => {
 
 const RightPageContent = ({ dateKey }: { dateKey: string }) => {
   const journalService = useService(JournalService);
+  const docsService = useService(DocsService);
   const allDocs = useLiveData(
     useMemo(
       () => journalService.journalsByDate$(dateKey),
@@ -439,6 +440,51 @@ const RightPageContent = ({ dateKey }: { dateKey: string }) => {
     return { todoDocs, meetingDocs };
   }, [allDocs]);
 
+  const handleCreateTodo = useCallback(() => {
+    const title = `Todo · ${dayjs(dateKey).format('MMM D, YYYY')}`;
+    const newDoc = docsService.createDoc({
+      title,
+      docProps: {
+        paragraph: { type: 'h3', text: new Text("Today's Tasks") },
+      },
+    });
+    journalService.setJournalDate(newDoc.id, dateKey);
+    // Todos surface via the journal's "Today's Tasks" section, not as a
+    // linked-doc paragraph — so we only ensure the journal exists, no link.
+    journalService.ensureJournalByDate(dateKey);
+  }, [dateKey, docsService, journalService]);
+
+  const handleCreateMeeting = useCallback(() => {
+    const baseTitle = `Meeting · ${dayjs(dateKey).format('MMM D, YYYY')}`;
+    const title =
+      meetingDocs.length > 0
+        ? `${baseTitle} (${meetingDocs.length + 1})`
+        : baseTitle;
+    const newDoc = docsService.createDoc({
+      title,
+      docProps: {
+        paragraph: { type: 'h3', text: new Text('Meeting Notes') },
+        onStoreLoad: (store: any, { noteId }: { noteId: string }) => {
+          store.addBlock(
+            'affine:paragraph',
+            { type: 'h6', text: new Text('Location') },
+            noteId
+          );
+          store.addBlock('affine:paragraph', { text: new Text('') }, noteId);
+          store.addBlock(
+            'affine:paragraph',
+            { type: 'h6', text: new Text('Discussion Points') },
+            noteId
+          );
+          store.addBlock('affine:paragraph', { text: new Text('') }, noteId);
+        },
+      },
+    });
+    journalService.setJournalDate(newDoc.id, dateKey);
+    const journalDoc = journalService.ensureJournalByDate(dateKey);
+    docsService.addLinkedDoc(journalDoc.id, newDoc.id).catch(console.error);
+  }, [dateKey, docsService, journalService, meetingDocs.length]);
+
   const d = dayjs(dateKey);
 
   return (
@@ -455,9 +501,24 @@ const RightPageContent = ({ dateKey }: { dateKey: string }) => {
       <div className={styles.flipBookPageDivider} />
       <div className={styles.flipBookPageSections}>
         <div className={styles.flipBookSection}>
-          <span className={styles.flipBookSectionLabel} data-section="task">
-            ✅ Tasks
-          </span>
+          <div className={styles.flipBookSectionHeader}>
+            <span className={styles.flipBookSectionLabel} data-section="task">
+              ✅ Tasks
+            </span>
+            {todoDocs.length === 0 && (
+              <button
+                className={styles.flipBookSectionAddBtn}
+                onClick={e => {
+                  e.stopPropagation();
+                  handleCreateTodo();
+                }}
+                title="Add todo"
+                onMouseDown={e => e.stopPropagation()}
+              >
+                +
+              </button>
+            )}
+          </div>
           {todoDocs.length === 0 ? (
             <span className={styles.flipBookPageEmpty}>No tasks</span>
           ) : (
@@ -466,9 +527,25 @@ const RightPageContent = ({ dateKey }: { dateKey: string }) => {
         </div>
 
         <div className={styles.flipBookSection}>
-          <span className={styles.flipBookSectionLabel} data-section="meeting">
-            📅 Meetings
-          </span>
+          <div className={styles.flipBookSectionHeader}>
+            <span
+              className={styles.flipBookSectionLabel}
+              data-section="meeting"
+            >
+              📅 Meetings
+            </span>
+            <button
+              className={styles.flipBookSectionAddBtn}
+              onClick={e => {
+                e.stopPropagation();
+                handleCreateMeeting();
+              }}
+              title="Add meeting"
+              onMouseDown={e => e.stopPropagation()}
+            >
+              +
+            </button>
+          </div>
           {meetingDocs.length === 0 ? (
             <span className={styles.flipBookPageEmpty}>No meetings</span>
           ) : (
