@@ -58,6 +58,21 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
     [allDocs, dateKey]
   );
 
+  // If a day has a todo or meeting, ensure it always has a journal too
+  const hasTodoOrMeeting = useMemo(
+    () =>
+      allDocs.some(d => {
+        const title = d.meta$.value.title ?? '';
+        return title.startsWith('Todo ·') || title.startsWith('Meeting ·');
+      }),
+    [allDocs]
+  );
+  useEffect(() => {
+    if (!journalDoc && hasTodoOrMeeting) {
+      journalService.ensureJournalByDate(dateKey);
+    }
+  }, [journalDoc, hasTodoOrMeeting, journalService, dateKey]);
+
   const [content, setContent] = useState('');
   const storeRef = useRef<any>(null);
   const isEditingRef = useRef(false);

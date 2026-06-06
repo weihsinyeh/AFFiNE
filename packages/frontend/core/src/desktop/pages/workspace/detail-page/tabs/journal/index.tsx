@@ -703,8 +703,13 @@ const FullCalendarDayCell = ({
     return () => cleanups.forEach(fn => fn());
   }, [journalDocs, docsService, storeHasContent]);
 
+  // Show journal tag if it has content, OR if the journal exists alongside
+  // todo/meeting docs (the empty journal was auto-created to anchor the day).
+  const showJournalTag =
+    hasJournalContent ||
+    (journalDocs.length > 0 && (todoDocs.length > 0 || meetingDocs.length > 0));
   const tagCount =
-    (hasJournalContent ? 1 : 0) +
+    (showJournalTag ? 1 : 0) +
     (todoDocs.length > 0 ? 1 : 0) +
     (meetingDocs.length > 0 ? 1 : 0);
   const maxEvents = Math.max(0, 4 - tagCount);
@@ -827,7 +832,7 @@ const FullCalendarDayCell = ({
         </div>
       </div>
       <div className={styles.fullCalendarDayAgenda}>
-        {hasJournalContent ? (
+        {showJournalTag ? (
           <span
             className={styles.fullCalendarAgendaItem}
             data-type="journal"
