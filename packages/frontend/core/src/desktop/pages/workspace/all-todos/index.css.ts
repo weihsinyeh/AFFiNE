@@ -86,6 +86,22 @@ export const newTodoDateInput = style({
   },
 });
 
+export const newTodoTaskInput = style({
+  flex: 1,
+  border: `1px solid ${cssVar('borderColor')}`,
+  borderRadius: 5,
+  padding: '4px 8px',
+  fontSize: 13,
+  color: cssVarV2('text/primary'),
+  background: cssVarV2('layer/background/primary'),
+  outline: 'none',
+  minWidth: 0,
+  selectors: {
+    '&::placeholder': { color: cssVar('placeholderColor') },
+    '&:focus': { borderColor: cssVar('primaryColor') },
+  },
+});
+
 export const newTodoConfirm = style({
   height: 28,
   padding: '0 12px',

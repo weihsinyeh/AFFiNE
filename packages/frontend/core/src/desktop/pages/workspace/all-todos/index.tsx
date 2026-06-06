@@ -200,40 +200,68 @@ const TodoRow = ({ doc }: { doc: DocRecord }) => {
 const NewTodoRow = ({ onClose }: { onClose: () => void }) => {
   const docsService = useService(DocsService);
   const journalService = useService(JournalService);
-  const workbench = useService(WorkbenchService).workbench;
-  const dateInputRef = useRef<HTMLInputElement>(null);
+  const taskInputRef = useRef<HTMLInputElement>(null);
 
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [taskText, setTaskText] = useState('');
 
   useEffect(() => {
-    dateInputRef.current?.focus();
+    taskInputRef.current?.focus();
   }, []);
 
   const handleCreate = useCallback(() => {
     if (!date) return;
     const day = dayjs(date);
     const dateKey = day.format('YYYY-MM-DD');
+    const text = taskText.trim();
 
-    // Re-use existing todo doc for this date if one already exists
     const existing = journalService
       .journalsByDate$(dateKey)
       .value.find(doc => (doc.meta$.value.title ?? '').startsWith('Todo ·'));
 
     if (existing) {
-      workbench.openDoc(existing.id, { at: 'active' });
+      // Add the task to the existing todo doc
+      if (text) {
+        try {
+          const { doc: openedDoc, release } = docsService.open(existing.id);
+          const store = openedDoc.blockSuiteDoc;
+          store.load();
+          const note = store.getBlocksByFlavour('affine:note')[0];
+          if (note) {
+            store.addBlock(
+              'affine:list',
+              { type: 'todo', text: new Text(text) },
+              note.id
+            );
+          }
+          release();
+        } catch {
+          // doc not yet available — skip adding the task block
+        }
+      }
     } else {
       const newDoc = docsService.createDoc({
         title: `Todo · ${day.format('MMM D, YYYY')}`,
         docProps: {
           paragraph: { type: 'h3', text: new Text("Today's Tasks") },
+          ...(text
+            ? {
+                onStoreLoad: (store: any, { noteId }: { noteId: string }) => {
+                  store.addBlock(
+                    'affine:list',
+                    { type: 'todo', text: new Text(text) },
+                    noteId
+                  );
+                },
+              }
+            : {}),
         },
       });
       journalService.setJournalDate(newDoc.id, dateKey);
       journalService.ensureJournalByDate(dateKey);
-      workbench.openDoc(newDoc.id, { at: 'active' });
     }
     onClose();
-  }, [date, docsService, journalService, workbench, onClose]);
+  }, [date, taskText, docsService, journalService, onClose]);
 
   return (
     <tr className={styles.newTodoRow}>
@@ -241,13 +269,25 @@ const NewTodoRow = ({ onClose }: { onClose: () => void }) => {
         <div className={styles.newTodoForm}>
           <span className={styles.newTodoLabel}>Date</span>
           <input
-            ref={dateInputRef}
             type="date"
             className={styles.newTodoDateInput}
             value={date}
             onChange={e => setDate(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter') handleCreate();
+              if (e.key === 'Escape') onClose();
+            }}
+          />
+          <span className={styles.newTodoLabel}>Task</span>
+          <input
+            ref={taskInputRef}
+            type="text"
+            className={styles.newTodoTaskInput}
+            value={taskText}
+            placeholder="Task content…"
+            onChange={e => setTaskText(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing)
+                handleCreate();
               if (e.key === 'Escape') onClose();
             }}
           />
