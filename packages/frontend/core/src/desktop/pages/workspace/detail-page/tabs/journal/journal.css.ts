@@ -1131,6 +1131,8 @@ export const flipBookSection = style({
   display: 'flex',
   flexDirection: 'column',
   gap: 3,
+  flex: '1 1 0',
+  minHeight: 0,
 });
 
 export const flipBookSectionLabel = style({
@@ -1160,6 +1162,68 @@ export const flipBookListItem = style({
   selectors: {
     '&::before': {
       content: '"• "',
+      color: cssVar('textSecondaryColor'),
+    },
+  },
+});
+
+/** Textarea used inside each right-page section (tasks / meeting notes). */
+export const flipBookSectionTextarea = style({
+  flex: '1 1 0',
+  minHeight: 0,
+  width: '100%',
+  resize: 'none',
+  border: 'none',
+  outline: 'none',
+  background: 'transparent',
+  fontSize: 10,
+  lineHeight: '22px',
+  color: cssVarV2.text.primary,
+  fontFamily: 'inherit',
+  padding: 0,
+  overflow: 'auto',
+  selectors: {
+    '&::placeholder': {
+      color: cssVar('textSecondaryColor'),
+      fontStyle: 'italic',
+    },
+  },
+});
+
+/** Container for all meeting items on the right page. */
+export const flipBookMeetingList = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  flex: '1 1 0',
+  minHeight: 0,
+  overflow: 'auto',
+});
+
+/** One meeting: editable name on top, notes textarea below. */
+export const flipBookMeetingItem = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  minHeight: 0,
+});
+
+/** Inline input for the meeting name (the part after "Meeting · "). */
+export const flipBookMeetingNameInput = style({
+  width: '100%',
+  border: 'none',
+  outline: 'none',
+  background: 'transparent',
+  fontSize: 10,
+  fontWeight: 600,
+  lineHeight: '16px',
+  color: cssVarV2.text.secondary,
+  fontFamily: 'inherit',
+  padding: 0,
+  textTransform: 'uppercase',
+  letterSpacing: '0.4px',
+  selectors: {
+    '&::placeholder': {
       color: cssVar('textSecondaryColor'),
     },
   },

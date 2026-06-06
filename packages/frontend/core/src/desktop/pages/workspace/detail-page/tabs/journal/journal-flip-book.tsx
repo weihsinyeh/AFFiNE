@@ -10,7 +10,13 @@ import {
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import * as styles from './journal.css';
 
@@ -40,6 +46,30 @@ export const BookOpenSvgIcon = () => (
     />
   </svg>
 );
+
+const makeReadFn = (
+  store: any,
+  isEditingRef: React.RefObject<boolean>,
+  setContent: (text: string) => void
+) => {
+  return () => {
+    if (isEditingRef.current) return;
+    const blocks = [
+      ...store.getBlocksByFlavour('affine:paragraph'),
+      ...store.getBlocksByFlavour('affine:list'),
+    ];
+    const text = blocks
+      .map(
+        (b: any) =>
+          (b.model as { text?: { toString(): string } })?.text
+            ?.toString()
+            .trim() ?? ''
+      )
+      .filter(Boolean)
+      .join('\n');
+    setContent(text);
+  };
+};
 
 // ── Left page: journal text ────────────────────────────────────────────────
 
@@ -89,23 +119,7 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
       const store = doc.blockSuiteDoc;
       storeRef.current = store;
       store.load();
-      const read = () => {
-        if (isEditingRef.current) return;
-        const blocks = [
-          ...store.getBlocksByFlavour('affine:paragraph'),
-          ...store.getBlocksByFlavour('affine:list'),
-        ];
-        const text = blocks
-          .map(
-            b =>
-              (b.model as { text?: { toString(): string } })?.text
-                ?.toString()
-                .trim() ?? ''
-          )
-          .filter(Boolean)
-          .join('\n');
-        setContent(text);
-      };
+      const read = makeReadFn(store, isEditingRef, setContent);
       read();
       const sub = store.slots.blockUpdated.subscribe(read);
       cleanup = () => {
@@ -191,6 +205,230 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
   );
 };
 
+// ── Shared: editable textarea backed by a DocRecord's BlockSuite store ──────
+
+const EditableDocContent = ({
+  docRecord,
+  placeholder,
+}: {
+  docRecord: DocRecord;
+  placeholder: string;
+}) => {
+  const docsService = useService(DocsService);
+  const storeRef = useRef<any>(null);
+  const isEditingRef = useRef(false);
+  const [content, setContent] = useState('');
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    try {
+      const { doc, release } = docsService.open(docRecord.id);
+      const store = doc.blockSuiteDoc;
+      storeRef.current = store;
+      store.load();
+      const read = makeReadFn(store, isEditingRef, setContent);
+      read();
+      const sub = store.slots.blockUpdated.subscribe(read);
+      cleanup = () => {
+        sub.unsubscribe();
+        release();
+        storeRef.current = null;
+      };
+    } catch {
+      setContent('');
+    }
+    return () => cleanup?.();
+  }, [docRecord.id, docsService]);
+
+  const syncContent = useCallback((newContent: string) => {
+    const store = storeRef.current;
+    if (!store) return;
+    try {
+      const paragraphs = store.getBlocksByFlavour('affine:paragraph');
+      const notes = store.getBlocksByFlavour('affine:note');
+      if (!notes.length) return;
+      if (paragraphs.length > 0) {
+        const firstText = (paragraphs[0].model as { text?: Text }).text;
+        if (firstText) {
+          firstText.delete(0, firstText.length);
+          if (newContent) firstText.insert(newContent, 0);
+        }
+        for (let i = 1; i < paragraphs.length; i++) {
+          const t = (paragraphs[i].model as { text?: Text }).text;
+          if (t) t.delete(0, t.length);
+        }
+      } else if (newContent.trim()) {
+        store.addBlock(
+          'affine:paragraph',
+          { text: new Text(newContent) },
+          notes[0].id
+        );
+      }
+    } catch (e) {
+      console.error('flip book doc sync failed', e);
+    }
+  }, []);
+
+  return (
+    <textarea
+      className={styles.flipBookSectionTextarea}
+      value={content}
+      onChange={e => setContent(e.target.value)}
+      onFocus={() => {
+        isEditingRef.current = true;
+      }}
+      onBlur={e => {
+        isEditingRef.current = false;
+        syncContent(e.target.value);
+      }}
+      placeholder={placeholder}
+      onMouseDown={e => e.stopPropagation()}
+      onTouchStart={e => e.stopPropagation()}
+      spellCheck={false}
+    />
+  );
+};
+
+// ── Shared: editable meeting name input ──────────────────────────────────────
+
+const EditableMeetingName = ({ docRecord }: { docRecord: DocRecord }) => {
+  const meta = useLiveData(docRecord.meta$);
+  const displayName = (meta.title ?? '').replace(/^Meeting · /, '');
+  const [name, setName] = useState(displayName);
+  const isEditingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isEditingRef.current) setName(displayName);
+  }, [displayName]);
+
+  const commitRename = useCallback(
+    (val: string) => {
+      const trimmed = val.trim();
+      if (trimmed) docRecord.setMeta({ title: `Meeting · ${trimmed}` });
+    },
+    [docRecord]
+  );
+
+  return (
+    <input
+      className={styles.flipBookMeetingNameInput}
+      value={name}
+      onChange={e => setName(e.target.value)}
+      onFocus={() => {
+        isEditingRef.current = true;
+      }}
+      onBlur={e => {
+        isEditingRef.current = false;
+        commitRename(e.target.value);
+      }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          e.currentTarget.blur();
+        }
+      }}
+      onMouseDown={e => e.stopPropagation()}
+      onTouchStart={e => e.stopPropagation()}
+      spellCheck={false}
+    />
+  );
+};
+
+// ── Specialized: editable todo-list textarea ─────────────────────────────────
+//
+// Reads/writes the affine:list { type:'todo' } blocks inside the TODO doc —
+// the same blocks that JournalTodayTasks reads, so edits appear instantly in
+// the journal's "Today's Tasks" section.
+
+const EditableTodoContent = ({ docRecord }: { docRecord: DocRecord }) => {
+  const docsService = useService(DocsService);
+  const storeRef = useRef<any>(null);
+  const isEditingRef = useRef(false);
+  const [content, setContent] = useState('');
+
+  useEffect(() => {
+    let cleanup: (() => void) | undefined;
+    try {
+      const { doc, release } = docsService.open(docRecord.id);
+      const store = doc.blockSuiteDoc;
+      storeRef.current = store;
+      store.load();
+      const read = () => {
+        if (isEditingRef.current) return;
+        const items = store
+          .getBlocksByFlavour('affine:list')
+          .filter((b: any) => b.model.props?.type === 'todo');
+        const text = items
+          .map((b: any) => b.model.props?.text?.toString().trim() ?? '')
+          .filter(Boolean)
+          .join('\n');
+        setContent(text);
+      };
+      read();
+      const sub = store.slots.blockUpdated.subscribe(read);
+      cleanup = () => {
+        sub.unsubscribe();
+        release();
+        storeRef.current = null;
+      };
+    } catch {
+      setContent('');
+    }
+    return () => cleanup?.();
+  }, [docRecord.id, docsService]);
+
+  const syncContent = useCallback((newContent: string) => {
+    const store = storeRef.current;
+    if (!store) return;
+    try {
+      const notes = store.getBlocksByFlavour('affine:note');
+      if (!notes.length) return;
+      const existingItems = store
+        .getBlocksByFlavour('affine:list')
+        .filter((b: any) => b.model.props?.type === 'todo');
+      const lines = newContent.split('\n').filter(l => l.trim());
+
+      // Update / add / clear to match lines
+      for (let i = 0; i < Math.max(lines.length, existingItems.length); i++) {
+        if (i < lines.length && i < existingItems.length) {
+          store.updateBlock(existingItems[i].model, {
+            text: new Text(lines[i]),
+          });
+        } else if (i < lines.length) {
+          store.addBlock(
+            'affine:list',
+            { type: 'todo', text: new Text(lines[i]) },
+            notes[0].id
+          );
+        } else {
+          // clear so collectTasks filters it out (text.trim().length === 0)
+          store.updateBlock(existingItems[i].model, { text: new Text('') });
+        }
+      }
+    } catch (e) {
+      console.error('flip book todo sync failed', e);
+    }
+  }, []);
+
+  return (
+    <textarea
+      className={styles.flipBookSectionTextarea}
+      value={content}
+      onChange={e => setContent(e.target.value)}
+      onFocus={() => {
+        isEditingRef.current = true;
+      }}
+      onBlur={e => {
+        isEditingRef.current = false;
+        syncContent(e.target.value);
+      }}
+      placeholder="Add tasks…"
+      onMouseDown={e => e.stopPropagation()}
+      onTouchStart={e => e.stopPropagation()}
+      spellCheck={false}
+    />
+  );
+};
+
 // ── Right page: todo + meeting ─────────────────────────────────────────────
 
 const RightPageContent = ({ dateKey }: { dateKey: string }) => {
@@ -233,16 +471,7 @@ const RightPageContent = ({ dateKey }: { dateKey: string }) => {
           {todoDocs.length === 0 ? (
             <span className={styles.flipBookPageEmpty}>No tasks</span>
           ) : (
-            <ul className={styles.flipBookList}>
-              {todoDocs.map(doc => (
-                <li key={doc.id} className={styles.flipBookListItem}>
-                  {(doc.meta$.value.title || 'Untitled').replace(
-                    /^Todo · /,
-                    ''
-                  )}
-                </li>
-              ))}
-            </ul>
+            <EditableTodoContent docRecord={todoDocs[0]} />
           )}
         </div>
 
@@ -251,16 +480,17 @@ const RightPageContent = ({ dateKey }: { dateKey: string }) => {
           {meetingDocs.length === 0 ? (
             <span className={styles.flipBookPageEmpty}>No meetings</span>
           ) : (
-            <ul className={styles.flipBookList}>
+            <div className={styles.flipBookMeetingList}>
               {meetingDocs.map(doc => (
-                <li key={doc.id} className={styles.flipBookListItem}>
-                  {(doc.meta$.value.title || 'Untitled').replace(
-                    /^Meeting · /,
-                    ''
-                  )}
-                </li>
+                <div key={doc.id} className={styles.flipBookMeetingItem}>
+                  <EditableMeetingName docRecord={doc} />
+                  <EditableDocContent
+                    docRecord={doc}
+                    placeholder="Meeting notes…"
+                  />
+                </div>
               ))}
-            </ul>
+            </div>
           )}
         </div>
       </div>
