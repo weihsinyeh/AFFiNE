@@ -180,7 +180,9 @@ const WorkbenchView = ({
       <>
         <div className={styles.labelIcon}>
           {workbench.ready || !workbench.loaded ? (
-            iconNameToIcon[view.iconName ?? 'allDocs']
+            iconNameToIcon[
+              (view.iconName ?? 'allDocs') as keyof typeof iconNameToIcon
+            ]
           ) : (
             <Loading />
           )}

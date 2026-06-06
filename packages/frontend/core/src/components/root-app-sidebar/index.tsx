@@ -22,6 +22,7 @@ import {
   AiOutlineIcon,
   AllDocsIcon,
   ImportIcon,
+  InboxIcon,
   JournalIcon,
   SettingsIcon,
 } from '@blocksuite/icons/rc';
@@ -84,6 +85,20 @@ const AllDocsButton = () => {
       <span data-testid="all-pages">
         {t['com.affine.workspaceSubPath.all']()}
       </span>
+    </MenuLinkItem>
+  );
+};
+
+const AllTodosButton = () => {
+  const { workbenchService } = useServices({ WorkbenchService });
+  const workbench = workbenchService.workbench;
+  const active = useLiveData(
+    workbench.location$.selector(location => location.pathname === '/all-todos')
+  );
+
+  return (
+    <MenuLinkItem icon={<InboxIcon />} active={active} to={'/all-todos'}>
+      <span>All Todos</span>
     </MenuLinkItem>
   );
 };
@@ -212,6 +227,7 @@ export const RootAppSidebar = memo((): ReactElement => {
           <AddPageButton />
         </div>
         <AllDocsButton />
+        <AllTodosButton />
         <AppSidebarJournalButton />
         {sessionStatus === 'authenticated' && <NotificationButton />}
         <AIChatButton />

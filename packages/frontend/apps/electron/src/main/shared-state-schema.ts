@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const workbenchViewIconNameSchema = z.enum([
   'trash',
   'allDocs',
+  'allTodos',
   'collection',
   'tag',
   'doc', // refers to a doc whose mode is not yet being resolved
