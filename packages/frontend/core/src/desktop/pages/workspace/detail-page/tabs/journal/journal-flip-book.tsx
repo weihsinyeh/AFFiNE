@@ -799,74 +799,78 @@ export const JournalFlipBook = ({
       </div>
 
       <div className={styles.flipBookBody}>
-        <div ref={containerRef} className={styles.flipBookContainer}>
-          {/* ── Static left page — drag rightward to go back ─────── */}
-          <div
-            className={clsx(
-              styles.flipBookStaticPage,
-              styles.flipBookStaticLeft,
-              !flipState && prevJournalDay && styles.flipBookPageClickable
-            )}
-            style={{
-              cursor: !flipState && prevJournalDay ? 'grab' : 'default',
-            }}
-            onMouseDown={handleLeftMouseDown}
-            onTouchStart={handleLeftMouseDown}
-            aria-label="Drag right to go to previous journal day"
-            aria-disabled={!prevJournalDay}
-          >
-            <LeftPageContent dateKey={staticLeftDay} />
-          </div>
-
-          {/* ── Book spine ───────────────────────────────────────── */}
-          <div className={styles.flipBookSpine} />
-
-          {/* ── Static right page — drag leftward to go forward ──── */}
-          <div
-            className={clsx(
-              styles.flipBookStaticPage,
-              styles.flipBookStaticRight,
-              !flipState && nextJournalDay && styles.flipBookPageClickable
-            )}
-            style={{
-              cursor: !flipState && nextJournalDay ? 'grab' : 'default',
-            }}
-            onMouseDown={handleRightMouseDown}
-            onTouchStart={handleRightMouseDown}
-            aria-label="Drag left to go to next journal day"
-            aria-disabled={!nextJournalDay}
-          >
-            <RightPageContent dateKey={staticRightDay} />
-          </div>
-
-          {/* ── Flip element (mounted while dragging / animating) ─── */}
-          {flipState && (
+        <div className={styles.flipBookBookWrap}>
+          <div ref={containerRef} className={styles.flipBookContainer}>
+            {/* ── Static left page — drag rightward to go back ─────── */}
             <div
               className={clsx(
-                styles.flipBookFlipEl,
-                flipState.dir === 'forward'
-                  ? styles.flipBookFlipElForward
-                  : styles.flipBookFlipElBackward
+                styles.flipBookStaticPage,
+                styles.flipBookStaticLeft,
+                !flipState && prevJournalDay && styles.flipBookPageClickable
               )}
-              style={flipElementStyle}
+              style={{
+                cursor: !flipState && prevJournalDay ? 'grab' : 'default',
+              }}
+              onMouseDown={handleLeftMouseDown}
+              onTouchStart={handleLeftMouseDown}
+              aria-label="Drag right to go to previous journal day"
+              aria-disabled={!prevJournalDay}
             >
-              <div className={styles.flipBookFlipFront}>
-                {flipState.dir === 'forward' ? (
-                  <RightPageContent dateKey={currentDay} />
-                ) : (
-                  <LeftPageContent dateKey={currentDay} />
-                )}
-              </div>
-              <div className={styles.flipBookFlipBack}>
-                {flipState.dir === 'forward' ? (
-                  <LeftPageContent dateKey={flipState.target} />
-                ) : (
-                  <RightPageContent dateKey={flipState.target} />
-                )}
-              </div>
+              <LeftPageContent dateKey={staticLeftDay} />
             </div>
-          )}
+
+            {/* ── Book spine ───────────────────────────────────────── */}
+            <div className={styles.flipBookSpine} />
+
+            {/* ── Static right page — drag leftward to go forward ──── */}
+            <div
+              className={clsx(
+                styles.flipBookStaticPage,
+                styles.flipBookStaticRight,
+                !flipState && nextJournalDay && styles.flipBookPageClickable
+              )}
+              style={{
+                cursor: !flipState && nextJournalDay ? 'grab' : 'default',
+              }}
+              onMouseDown={handleRightMouseDown}
+              onTouchStart={handleRightMouseDown}
+              aria-label="Drag left to go to next journal day"
+              aria-disabled={!nextJournalDay}
+            >
+              <RightPageContent dateKey={staticRightDay} />
+            </div>
+
+            {/* ── Flip element (mounted while dragging / animating) ─── */}
+            {flipState && (
+              <div
+                className={clsx(
+                  styles.flipBookFlipEl,
+                  flipState.dir === 'forward'
+                    ? styles.flipBookFlipElForward
+                    : styles.flipBookFlipElBackward
+                )}
+                style={flipElementStyle}
+              >
+                <div className={styles.flipBookFlipFront}>
+                  {flipState.dir === 'forward' ? (
+                    <RightPageContent dateKey={currentDay} />
+                  ) : (
+                    <LeftPageContent dateKey={currentDay} />
+                  )}
+                </div>
+                <div className={styles.flipBookFlipBack}>
+                  {flipState.dir === 'forward' ? (
+                    <LeftPageContent dateKey={flipState.target} />
+                  ) : (
+                    <RightPageContent dateKey={flipState.target} />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <div className={styles.flipBookBottomEdge} />
         </div>
+        {/* flipBookBookWrap */}
 
         {/* ── Navigation row ─────────────────────────────────────── */}
         <div className={styles.flipBookNavRow}>

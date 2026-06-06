@@ -906,9 +906,30 @@ export const flipBookBody = style({
   alignItems: 'center',
   justifyContent: 'center',
   gap: 14,
+  // padding gives room for the 3-D rotateX tilt to breathe without clipping
+  padding: '12px 10px',
+  // let the transformed book overflow the flex area visually
+  overflow: 'visible',
   // size container so the book can scale to the available height via cqh
   // units while keeping its aspect ratio
   containerType: 'size',
+});
+
+/**
+ * Outer wrapper for the book spread + bottom edge.  Owns the sizing and the
+ * slight 3-D tilt so that both the pages and the bottom-face element rotate
+ * as a unit. The drop-shadow lives here so it covers both elements.
+ */
+export const flipBookBookWrap = style({
+  position: 'relative',
+  flexShrink: 0,
+  // Leave room on all sides so the 3-D tilt and drop-shadow are never clipped.
+  // Height budget: 100cqh minus header(44) nav(48) body-padding(24) gap(14) = ~70px
+  width: ['86%', 'min(88%, calc((100cqh - 130px) * 16 / 11))'],
+  // tilt the book toward the viewer, like resting on a table
+  transform: 'perspective(1200px) rotateX(-5deg)',
+  transformOrigin: 'center bottom',
+  filter: 'drop-shadow(0 8px 20px rgba(0,0,0,0.28))',
 });
 
 /**
@@ -923,21 +944,54 @@ export const flipBookBody = style({
  */
 export const flipBookContainer = style({
   position: 'relative',
-  // fill the available space as much as possible while preserving the
-  // aspect ratio: capped by the body width AND by the body height minus
-  // the nav row below (~48px incl. gap). Array = fallback for browsers
-  // without container-query units.
-  width: ['94%', 'min(100%, calc((100cqh - 48px) * 16 / 11))'],
+  zIndex: 1,
+  width: '100%',
   aspectRatio: '16 / 11',
   display: 'flex',
   flexDirection: 'row',
   perspective: '1200px',
   userSelect: 'none',
-  // book drop-shadow
-  filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.22))',
   // Base font for all page content — scales with container width,
   // clamped so text stays readable at very small or very large sizes.
   fontSize: 'clamp(11px, 3.8cqi, 16px)',
+});
+
+/**
+ * The visible bottom edge of the book — simulates the stacked page ends.
+ * Absolutely positioned just below the container so it shares the wrap's
+ * rotateX tilt and appears as a genuine bottom face.
+ */
+export const flipBookBottomEdge = style({
+  position: 'absolute',
+  zIndex: 0,
+  left: 0,
+  right: 0,
+  top: 'calc(100% - 1px)',
+  height: 16,
+  borderRadius: '0 0 4px 4px',
+  // Warm page-stack gradient: lighter at top (visible edge), deeper at bottom
+  background: `linear-gradient(to bottom, #e4dcc4 0%, #c8bc96 100%)`,
+  // Subtle horizontal lines suggesting individual page edges
+  backgroundImage: `
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px, transparent 1.5px,
+      rgba(0,0,0,0.04) 1.5px, rgba(0,0,0,0.04) 2px
+    ),
+    linear-gradient(to bottom, #e4dcc4 0%, #c8bc96 100%)
+  `,
+  // Spine shadow at center to hint at the book binding
+  selectors: {
+    '&::after': {
+      content: '""',
+      position: 'absolute',
+      left: 'calc(50% - 2px)',
+      width: 4,
+      top: 0,
+      bottom: 0,
+      background: 'rgba(0,0,0,0.12)',
+    },
+  },
 });
 
 export const flipBookStaticPage = style({
