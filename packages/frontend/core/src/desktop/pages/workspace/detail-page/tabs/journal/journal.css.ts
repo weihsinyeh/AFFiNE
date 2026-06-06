@@ -901,6 +901,9 @@ export const flipBookBody = style({
   alignItems: 'center',
   justifyContent: 'center',
   gap: 14,
+  // size container so the book can scale to the available height via cqh
+  // units while keeping its aspect ratio
+  containerType: 'size',
 });
 
 /**
@@ -915,8 +918,11 @@ export const flipBookBody = style({
  */
 export const flipBookContainer = style({
   position: 'relative',
-  width: '90%',
-  maxWidth: 760,
+  // fill the available space as much as possible while preserving the
+  // aspect ratio: capped by the body width AND by the body height minus
+  // the nav row below (~48px incl. gap). Array = fallback for browsers
+  // without container-query units.
+  width: ['94%', 'min(100%, calc((100cqh - 48px) * 16 / 11))'],
   aspectRatio: '16 / 11',
   display: 'flex',
   flexDirection: 'row',
