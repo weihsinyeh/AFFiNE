@@ -42,10 +42,10 @@ import { focusBlockEnd } from '@blocksuite/affine/shared/commands';
 import { getLastNoteBlock } from '@blocksuite/affine/shared/utils';
 import {
   AiIcon,
+  AiOutlineIcon,
   ChartPanelIcon,
   CommentIcon,
   ExportIcon,
-  FrameIcon,
   PropertyIcon,
   TocIcon,
   TodayIcon,
@@ -69,8 +69,8 @@ import { DetailPageWrapper } from './detail-page-wrapper';
 import { EditorAdapterPanel } from './tabs/adapter';
 import { EditorAnalyticsPanel } from './tabs/analytics';
 import { EditorChatPanel } from './tabs/chat';
-import { EditorFramePanel } from './tabs/frame';
 import { EditorJournalPanel } from './tabs/journal';
+import { EditorJournalAIPanel } from './tabs/journal-ai';
 import { EditorOutlinePanel } from './tabs/outline';
 
 const DetailPageImpl = memo(function DetailPageImpl() {
@@ -404,10 +404,10 @@ const DetailPageImpl = memo(function DetailPageImpl() {
         </Scrollable.Root>
       </ViewSidebarTab>
 
-      <ViewSidebarTab tabId="frame" icon={<FrameIcon />}>
+      <ViewSidebarTab tabId="frame" icon={<AiOutlineIcon />}>
         <Scrollable.Root className={styles.sidebarScrollArea}>
           <Scrollable.Viewport>
-            <EditorFramePanel editor={editorContainer?.host ?? null} />
+            <EditorJournalAIPanel doc={doc.blockSuiteDoc} />
           </Scrollable.Viewport>
           <Scrollable.Scrollbar />
         </Scrollable.Root>
