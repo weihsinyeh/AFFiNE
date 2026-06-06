@@ -148,6 +148,8 @@ type StreamGeminiChatOptions = {
   apiKey: string;
   modelId: string;
   contents: GeminiContent[];
+  /** optional system instruction, e.g. attached doc contexts */
+  systemText?: string;
   signal?: AbortSignal;
 };
 
@@ -217,6 +219,7 @@ export async function* streamGeminiChat({
   apiKey,
   modelId,
   contents,
+  systemText,
   signal,
 }: StreamGeminiChatOptions): AsyncGenerator<string> {
   const url = `${GEMINI_API_BASE}/models/${modelId}:streamGenerateContent?alt=sse`;
@@ -226,7 +229,12 @@ export async function* streamGeminiChat({
       'Content-Type': 'application/json',
       'x-goog-api-key': apiKey,
     },
-    body: JSON.stringify({ contents }),
+    body: JSON.stringify({
+      contents,
+      ...(systemText
+        ? { systemInstruction: { parts: [{ text: systemText }] } }
+        : {}),
+    }),
     signal,
   });
 

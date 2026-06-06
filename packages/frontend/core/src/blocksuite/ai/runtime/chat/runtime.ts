@@ -415,7 +415,7 @@ export class AIChatRuntime {
       }
       if (isGeminiDirectModel(modelId)) {
         // Gemini models bypass the AFFiNE backend entirely
-        await this.sendViaGemini(modelId, seq);
+        await this.sendViaGemini(modelId, seq, options);
         return;
       }
 
@@ -547,11 +547,33 @@ export class AIChatRuntime {
   }
 
   /**
+   * Build a system instruction from doc contexts attached via the "+" menu
+   * (e.g. journal/calendar docs); contents are extracted client-side.
+   */
+  private buildGeminiSystemText(options?: AIChatSendOptions) {
+    const docs = (
+      options?.contexts as
+        | { docs?: { docTitle?: string; docContent?: string }[] }
+        | undefined
+    )?.docs;
+    if (!docs?.length) return undefined;
+    const sections = docs
+      .filter(doc => doc.docContent?.trim())
+      .map(doc => `《${doc.docTitle || 'Untitled'}》\n${doc.docContent}`);
+    if (!sections.length) return undefined;
+    return `使用者附上了以下筆記作為參考資料，回答時請優先參考這些內容：\n\n${sections.join('\n\n---\n\n')}`;
+  }
+
+  /**
    * Stream a chat response directly from the Google Gemini API using the
    * user-provided key, without any AFFiNE backend session. The conversation
    * lives in the local runtime snapshot.
    */
-  private async sendViaGemini(modelId: string, seq: number) {
+  private async sendViaGemini(
+    modelId: string,
+    seq: number,
+    options?: AIChatSendOptions
+  ) {
     const apiKey = this.options.getGeminiApiKey?.();
     if (!apiKey) {
       throw new Error(
@@ -563,6 +585,7 @@ export class AIChatRuntime {
       apiKey,
       modelId,
       contents,
+      systemText: this.buildGeminiSystemText(options),
       signal: this.streamAbortController?.signal,
     });
     for await (const chunk of stream) {
@@ -731,8 +754,21 @@ export class AIChatRuntime {
     const seq = ++this.contextRequestSeq;
     this.updateContextState({ loading: true, error: null });
     try {
-      const contextId = await this.getContextId();
-      if (!contextId) throw new Error('Context not found');
+      // backend context registration is unavailable without a server (e.g.
+      // Gemini-direct mode) — keep the item locally instead of dropping it:
+      // doc contents are extracted client-side and sent with the prompt
+      const contextId = await this.getContextId().catch(() => null);
+      if (!contextId) {
+        if (seq !== this.contextRequestSeq) return;
+        this.updateContextState({
+          loading: false,
+          items: [
+            ...this.snapshot.composer.context.items,
+            { ...item, state: 'finished' },
+          ],
+        });
+        return;
+      }
 
       const nextItem = await this.persistContextItem(contextId, item);
       if (seq !== this.contextRequestSeq) return;
