@@ -33,6 +33,20 @@ const PRIORITY_OPTIONS = [
 
 type TaskItem = { id: string; text: string; checked: boolean };
 
+type RichTask = {
+  task: TaskItem;
+  docRecord: DocRecord;
+  store: any;
+  dateLabel: string;
+};
+
+const PRIORITY_ORDER: Record<string, number> = {
+  high: 1,
+  medium: 2,
+  low: 3,
+  '': 4,
+};
+
 const collectTasks = (store: any): TaskItem[] =>
   store
     .getBlocksByFlavour('affine:list')
@@ -50,10 +64,12 @@ const TaskRow = ({
   task,
   docRecord,
   store,
+  dateLabel,
 }: {
   task: TaskItem;
   docRecord: DocRecord;
   store: any;
+  dateLabel?: string;
 }) => {
   const properties = useLiveData(docRecord.properties$) as Record<
     string,
@@ -115,14 +131,19 @@ const TaskRow = ({
               }}
             />
           ) : (
-            <span
-              className={styles.taskText}
-              data-checked={task.checked}
-              onClick={startEdit}
-              title="Click to edit"
-            >
-              {task.text}
-            </span>
+            <>
+              <span
+                className={styles.taskText}
+                data-checked={task.checked}
+                onClick={startEdit}
+                title="Click to edit"
+              >
+                {task.text}
+              </span>
+              {dateLabel && (
+                <span className={styles.taskDateBadge}>{dateLabel}</span>
+              )}
+            </>
           )}
         </div>
       </td>
@@ -301,6 +322,106 @@ const TodoDocSection = ({ doc }: { doc: DocRecord }) => {
   );
 };
 
+// ── Sorted flat task list across all todo docs ─────────────────────────────
+
+const SortedTaskList = ({
+  todoDocs,
+  sortMode,
+}: {
+  todoDocs: DocRecord[];
+  sortMode: 'deadline' | 'priority';
+}) => {
+  const docsService = useService(DocsService);
+  const [docTasks, setDocTasks] = useState<
+    Map<string, { store: any; tasks: TaskItem[] }>
+  >(new Map());
+  const [propsVersion, setPropsVersion] = useState(0);
+
+  useEffect(() => {
+    const map = new Map<string, { store: any; tasks: TaskItem[] }>();
+    const cleanups: (() => void)[] = [];
+    for (const doc of todoDocs) {
+      try {
+        const { doc: openedDoc, release } = docsService.open(doc.id);
+        const store = openedDoc.blockSuiteDoc;
+        store.load();
+        map.set(doc.id, { store, tasks: collectTasks(store) });
+        const sub = store.slots.blockUpdated.subscribe(() => {
+          map.set(doc.id, { store, tasks: collectTasks(store) });
+          setDocTasks(new Map(map));
+        });
+        cleanups.push(() => {
+          sub.unsubscribe();
+          release();
+        });
+      } catch {
+        // skip unavailable docs
+      }
+    }
+    setDocTasks(new Map(map));
+    return () => cleanups.forEach(fn => fn());
+  }, [todoDocs, docsService]);
+
+  useEffect(() => {
+    const subs: Array<{ unsubscribe(): void }> = [];
+    for (const doc of todoDocs) {
+      const sub = (doc.properties$ as any).subscribe(() =>
+        setPropsVersion(v => v + 1)
+      );
+      if (sub?.unsubscribe) subs.push(sub);
+    }
+    return () => subs.forEach(s => s.unsubscribe());
+  }, [todoDocs]);
+
+  const sortedTasks = useMemo(() => {
+    const all: RichTask[] = [];
+    for (const doc of todoDocs) {
+      const data = docTasks.get(doc.id);
+      if (!data?.store) continue;
+      const title = doc.meta$.value.title ?? '';
+      const dateLabel = title.replace(/^Todo · /, '');
+      for (const task of data.tasks) {
+        all.push({ task, docRecord: doc, store: data.store, dateLabel });
+      }
+    }
+    const getProps = (r: RichTask) =>
+      ((r.docRecord.properties$ as any).value ?? {}) as Record<
+        string,
+        string | undefined
+      >;
+    return [...all].sort((a, b) => {
+      const ap = getProps(a);
+      const bp = getProps(b);
+      const ad = ap[`custom:task_${a.task.id}_deadline`] || 'zzzz';
+      const bd = bp[`custom:task_${b.task.id}_deadline`] || 'zzzz';
+      const apr =
+        PRIORITY_ORDER[ap[`custom:task_${a.task.id}_priority`] ?? ''] ?? 4;
+      const bpr =
+        PRIORITY_ORDER[bp[`custom:task_${b.task.id}_priority`] ?? ''] ?? 4;
+      if (sortMode === 'deadline') {
+        return ad !== bd ? (ad < bd ? -1 : 1) : apr - bpr;
+      } else {
+        return apr !== bpr ? apr - bpr : ad < bd ? -1 : ad > bd ? 1 : 0;
+      }
+    });
+    // propsVersion is intentionally in deps to trigger re-sort on metadata changes
+  }, [docTasks, todoDocs, sortMode, propsVersion]);
+
+  return (
+    <>
+      {sortedTasks.map(({ task, docRecord, store, dateLabel }) => (
+        <TaskRow
+          key={task.id}
+          task={task}
+          docRecord={docRecord}
+          store={store}
+          dateLabel={dateLabel}
+        />
+      ))}
+    </>
+  );
+};
+
 // ── Inline new-todo creation row ───────────────────────────────────────────
 
 const NewTodoRow = ({ onClose }: { onClose: () => void }) => {
@@ -415,6 +536,7 @@ const AllTodosPage = () => {
   const docsService = useService(DocsService);
   const allDocs = useLiveData(docsService.list.docs$);
   const [creating, setCreating] = useState(false);
+  const [sortMode, setSortMode] = useState<'deadline' | 'priority' | ''>('');
 
   const todoDocs = useMemo(
     () =>
@@ -435,6 +557,17 @@ const AllTodosPage = () => {
           <span className={styles.headerTitle}>All Todos</span>
           <span className={styles.headerCount}>{todoDocs.length}</span>
           <div className={styles.headerSpacer} />
+          <select
+            className={styles.sortSelector}
+            value={sortMode}
+            onChange={e =>
+              setSortMode(e.target.value as 'deadline' | 'priority' | '')
+            }
+          >
+            <option value="">Sort: Default</option>
+            <option value="deadline">Sort: Deadline ↑</option>
+            <option value="priority">Sort: Priority ↓</option>
+          </select>
           <button
             className={styles.newTodoBtn}
             onClick={() => setCreating(true)}
@@ -458,9 +591,11 @@ const AllTodosPage = () => {
               </thead>
               <tbody>
                 {creating && <NewTodoRow onClose={() => setCreating(false)} />}
-                {todoDocs.map(doc => (
-                  <TodoDocSection key={doc.id} doc={doc} />
-                ))}
+                {sortMode ? (
+                  <SortedTaskList todoDocs={todoDocs} sortMode={sortMode} />
+                ) : (
+                  todoDocs.map(doc => <TodoDocSection key={doc.id} doc={doc} />)
+                )}
               </tbody>
             </table>
             {todoDocs.length === 0 && !creating && (

@@ -27,6 +27,22 @@ export const headerCount = style({
 
 export const headerSpacer = style({ flex: 1 });
 
+export const sortSelector = style({
+  height: 28,
+  padding: '0 26px 0 10px',
+  borderRadius: 6,
+  border: `1px solid ${cssVar('borderColor')}`,
+  background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 8px center ${cssVarV2('layer/background/primary')}`,
+  color: cssVarV2('text/primary'),
+  fontSize: 13,
+  cursor: 'pointer',
+  appearance: 'none',
+  outline: 'none',
+  selectors: {
+    '&:focus': { borderColor: cssVar('primaryColor') },
+  },
+});
+
 export const newTodoBtn = style({
   display: 'flex',
   alignItems: 'center',
@@ -280,16 +296,34 @@ export const taskCheckbox = style({
 });
 
 export const taskText = style({
+  flex: 1,
+  minWidth: 0,
   fontSize: 13,
   lineHeight: 1.5,
   color: cssVarV2('text/primary'),
   cursor: 'text',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
   selectors: {
     '&[data-checked="true"]': {
       textDecoration: 'line-through',
       color: cssVar('textSecondaryColor'),
     },
   },
+});
+
+export const taskDateBadge = style({
+  flexShrink: 0,
+  fontSize: 10,
+  fontWeight: 500,
+  color: cssVar('textSecondaryColor'),
+  background: cssVarV2('layer/background/secondary'),
+  border: `1px solid ${cssVar('borderColor')}`,
+  borderRadius: 3,
+  padding: '1px 5px',
+  whiteSpace: 'nowrap',
+  letterSpacing: '0.2px',
 });
 
 export const taskEmpty = style({
