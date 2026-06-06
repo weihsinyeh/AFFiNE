@@ -620,6 +620,41 @@ const FullCalendarDayCell = ({
     )
   );
 
+  // The Journal tag should only show when the journal actually has content
+  // — creating a todo auto-creates an empty journal doc for navigation,
+  // which must not light up the tag by itself.
+  const [hasJournalContent, setHasJournalContent] = useState(false);
+  const storeHasContent = useCallback((store: Doc['blockSuiteDoc']) => {
+    for (const note of store.getBlocksByFlavour('affine:note')) {
+      const children =
+        (note.model as unknown as { children?: unknown[] }).children ?? [];
+      for (const child of children) {
+        const block = child as {
+          flavour?: string;
+          text?: { toString: () => string };
+          props?: { text?: { toString: () => string } };
+        };
+        const text = (
+          block.text?.toString() ??
+          block.props?.text?.toString() ??
+          ''
+        ).trim();
+        if (text) return true;
+        // non-text blocks (images, attachments, databases, embeds...)
+        // count as content
+        const flavour = block.flavour ?? '';
+        if (
+          flavour &&
+          flavour !== 'affine:paragraph' &&
+          flavour !== 'affine:list'
+        ) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }, []);
+
   // Categorise journals for this day by title prefix so todo/meeting docs
   // (tagged with setJournalDate at creation) render as distinct tags.
   const { journalDocs, todoDocs, meetingDocs } = useMemo(() => {
@@ -639,8 +674,37 @@ const FullCalendarDayCell = ({
     return { journalDocs, todoDocs, meetingDocs };
   }, [journals]);
 
+  useEffect(() => {
+    if (journalDocs.length === 0) {
+      setHasJournalContent(false);
+      return;
+    }
+    const stores: Doc['blockSuiteDoc'][] = [];
+    const cleanups: (() => void)[] = [];
+    const check = () => {
+      setHasJournalContent(stores.some(store => storeHasContent(store)));
+    };
+    for (const record of journalDocs) {
+      try {
+        const { doc, release } = docsService.open(record.id);
+        const store = doc.blockSuiteDoc;
+        store.load();
+        stores.push(store);
+        const subscription = store.slots.blockUpdated.subscribe(check);
+        cleanups.push(() => {
+          subscription.unsubscribe();
+          release();
+        });
+      } catch {
+        // doc not available yet — treated as empty
+      }
+    }
+    check();
+    return () => cleanups.forEach(fn => fn());
+  }, [journalDocs, docsService, storeHasContent]);
+
   const tagCount =
-    (journalDocs.length > 0 ? 1 : 0) +
+    (hasJournalContent ? 1 : 0) +
     (todoDocs.length > 0 ? 1 : 0) +
     (meetingDocs.length > 0 ? 1 : 0);
   const maxEvents = Math.max(0, 4 - tagCount);
@@ -763,7 +827,7 @@ const FullCalendarDayCell = ({
         </div>
       </div>
       <div className={styles.fullCalendarDayAgenda}>
-        {journalDocs.length > 0 ? (
+        {hasJournalContent ? (
           <span
             className={styles.fullCalendarAgendaItem}
             data-type="journal"
