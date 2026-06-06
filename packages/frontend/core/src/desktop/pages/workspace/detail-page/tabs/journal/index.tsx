@@ -712,7 +712,13 @@ const FullCalendarDayCell = ({
   const hiddenCount = events.length - visibleEvents.length;
 
   const handleCreateDoc = useCallback(
-    (type: 'todo' | 'meeting') => {
+    (type: 'journal' | 'todo' | 'meeting') => {
+      // Journal: one per day — create if absent, open either way.
+      if (type === 'journal') {
+        const journalDoc = journalService.ensureJournalByDate(dateKey);
+        workbench.openDoc(journalDoc.id, { at: 'active' });
+        return;
+      }
       // Todo: one per day — if it already exists, go to the day's journal
       // where the "Today's Tasks" section surfaces it.
       if (type === 'todo' && todoDocs.length > 0) {
@@ -811,6 +817,9 @@ const FullCalendarDayCell = ({
           <Menu
             items={
               <>
+                <MenuItem onClick={() => void handleCreateDoc('journal')}>
+                  New Journal Entry
+                </MenuItem>
                 <MenuItem onClick={() => void handleCreateDoc('todo')}>
                   New Todo
                 </MenuItem>
