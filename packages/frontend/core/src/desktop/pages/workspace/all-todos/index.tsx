@@ -56,6 +56,11 @@ const TodoTaskList = ({
   const docsService = useService(DocsService);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [store, setStore] = useState<any>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const [addingTask, setAddingTask] = useState(false);
+  const [newTaskText, setNewTaskText] = useState('');
+  const addInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cleanup: (() => void) | undefined;
@@ -78,6 +83,10 @@ const TodoTaskList = ({
     return () => cleanup?.();
   }, [doc.id, docsService]);
 
+  useEffect(() => {
+    if (addingTask) addInputRef.current?.focus();
+  }, [addingTask]);
+
   const toggleTask = useCallback(
     (task: TaskItem) => {
       if (!store) return;
@@ -88,6 +97,42 @@ const TodoTaskList = ({
     [store]
   );
 
+  const startEdit = useCallback((task: TaskItem) => {
+    setEditingId(task.id);
+    setEditingText(task.text);
+  }, []);
+
+  const commitEdit = useCallback(
+    (id: string) => {
+      if (!store) return;
+      const text = editingText.trim();
+      if (text) {
+        const block = store.getBlock(id);
+        if (block) {
+          store.updateBlock(block.model, { text: new Text(text) });
+        }
+      }
+      setEditingId(null);
+    },
+    [store, editingText]
+  );
+
+  const commitAdd = useCallback(() => {
+    const text = newTaskText.trim();
+    if (text && store) {
+      const note = store.getBlocksByFlavour('affine:note')[0];
+      if (note) {
+        store.addBlock(
+          'affine:list',
+          { type: 'todo', text: new Text(text) },
+          note.id
+        );
+      }
+    }
+    setNewTaskText('');
+    setAddingTask(false);
+  }, [store, newTaskText]);
+
   const title = useLiveData(doc.title$);
   const dateLabel = title.replace(/^Todo · /, '');
 
@@ -96,24 +141,75 @@ const TodoTaskList = ({
       <button className={styles.dateLink} onClick={onOpen} title={title}>
         {dateLabel}
       </button>
-      {tasks.length === 0 ? (
-        <span className={styles.taskEmpty}>No tasks</span>
-      ) : (
-        <ul className={styles.taskList}>
-          {tasks.map(task => (
-            <li key={task.id} className={styles.taskItem}>
+      <ul className={styles.taskList}>
+        {tasks.map(task => (
+          <li key={task.id} className={styles.taskItem}>
+            <input
+              type="checkbox"
+              className={styles.taskCheckbox}
+              checked={task.checked}
+              onChange={() => toggleTask(task)}
+            />
+            {editingId === task.id ? (
               <input
-                type="checkbox"
-                className={styles.taskCheckbox}
-                checked={task.checked}
-                onChange={() => toggleTask(task)}
+                className={styles.taskEditInput}
+                value={editingText}
+                autoFocus
+                onChange={e => setEditingText(e.target.value)}
+                onBlur={() => commitEdit(task.id)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing)
+                    commitEdit(task.id);
+                  if (e.key === 'Escape') setEditingId(null);
+                }}
               />
-              <span className={styles.taskText} data-checked={task.checked}>
+            ) : (
+              <span
+                className={styles.taskText}
+                data-checked={task.checked}
+                onClick={() => startEdit(task)}
+                title="Click to edit"
+              >
                 {task.text}
               </span>
-            </li>
-          ))}
-        </ul>
+            )}
+          </li>
+        ))}
+        {addingTask && (
+          <li className={styles.taskItem}>
+            <input
+              type="checkbox"
+              className={styles.taskCheckbox}
+              checked={false}
+              disabled
+              readOnly
+            />
+            <input
+              ref={addInputRef}
+              className={styles.taskEditInput}
+              value={newTaskText}
+              placeholder="New task…"
+              onChange={e => setNewTaskText(e.target.value)}
+              onBlur={commitAdd}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing)
+                  commitAdd();
+                if (e.key === 'Escape') {
+                  setNewTaskText('');
+                  setAddingTask(false);
+                }
+              }}
+            />
+          </li>
+        )}
+      </ul>
+      {!addingTask && (
+        <button
+          className={styles.addTaskBtn}
+          onClick={() => setAddingTask(true)}
+        >
+          + Add task
+        </button>
       )}
     </div>
   );

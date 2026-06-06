@@ -269,6 +269,7 @@ export const taskText = style({
   fontSize: 13,
   lineHeight: 1.5,
   color: cssVarV2('text/primary'),
+  cursor: 'text',
   selectors: {
     '&[data-checked="true"]': {
       textDecoration: 'line-through',
@@ -281,6 +282,35 @@ export const taskEmpty = style({
   fontSize: 12,
   color: cssVar('placeholderColor'),
   fontStyle: 'italic',
+});
+
+export const taskEditInput = style({
+  flex: 1,
+  border: `1px solid ${cssVar('primaryColor')}`,
+  borderRadius: 3,
+  padding: '1px 5px',
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: cssVarV2('text/primary'),
+  background: cssVarV2('layer/background/primary'),
+  outline: 'none',
+  minWidth: 0,
+  selectors: {
+    '&::placeholder': { color: cssVar('placeholderColor') },
+  },
+});
+
+export const addTaskBtn = style({
+  alignSelf: 'flex-start',
+  background: 'none',
+  border: 'none',
+  padding: '1px 0',
+  fontSize: 12,
+  color: cssVar('textSecondaryColor'),
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': { color: cssVar('primaryColor') },
+  },
 });
 
 export const todoLink = style({
