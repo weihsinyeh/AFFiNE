@@ -818,7 +818,9 @@ interface FullMonthCalendarViewProps {
   cursor: dayjs.Dayjs;
   onCursorChange: (d: dayjs.Dayjs) => void;
   onDateSelect: (dateKey: string) => void;
-  onClose: () => void;
+  /** render inside the panel instead of as a full-viewport overlay */
+  inline?: boolean;
+  onClose?: () => void;
 }
 
 const FullMonthCalendarView = ({
@@ -826,6 +828,7 @@ const FullMonthCalendarView = ({
   cursor,
   onCursorChange,
   onDateSelect,
+  inline,
   onClose,
 }: FullMonthCalendarViewProps) => {
   const t = useI18n();
@@ -841,8 +844,10 @@ const FullMonthCalendarView = ({
   const weekDays = useMemo(() => weekDaysStr.split(/[,،]/), [weekDaysStr]);
 
   useEffect(() => {
-    overlayRef.current?.focus();
-  }, []);
+    if (!inline) {
+      overlayRef.current?.focus();
+    }
+  }, [inline]);
 
   const weeks = useMemo<dayjs.Dayjs[][]>(() => {
     const start = cursor.startOf('month').startOf('week');
@@ -866,13 +871,15 @@ const FullMonthCalendarView = ({
   return (
     <div
       ref={overlayRef}
-      className={styles.fullCalendarOverlay}
-      role="dialog"
-      aria-modal="true"
+      className={
+        inline ? styles.fullCalendarInline : styles.fullCalendarOverlay
+      }
+      role={inline ? undefined : 'dialog'}
+      aria-modal={inline ? undefined : 'true'}
       aria-label={titleStr}
       tabIndex={-1}
       onKeyDown={e => {
-        if (e.key === 'Escape') onClose();
+        if (e.key === 'Escape') onClose?.();
         if (e.key === 'ArrowLeft') onCursorChange(cursor.subtract(1, 'month'));
         if (e.key === 'ArrowRight') onCursorChange(cursor.add(1, 'month'));
       }}
@@ -900,9 +907,11 @@ const FullMonthCalendarView = ({
           >
             <ArrowRightSmallIcon />
           </IconButton>
-          <IconButton aria-label="Close full page calendar" onClick={onClose}>
-            <ExpandCloseIcon />
-          </IconButton>
+          {onClose ? (
+            <IconButton aria-label="Close full page calendar" onClick={onClose}>
+              <ExpandCloseIcon />
+            </IconButton>
+          ) : null}
         </div>
       </div>
 
@@ -958,6 +967,7 @@ export const EditorJournalPanel = () => {
     return journalDate ?? routeDate ?? dayjs();
   });
   const [calendarCursor, setCalendarCursor] = useState(selectedDate);
+  // mobile-only overlay toggle; desktop always renders the inline full view
   const [calendarExpanded, setCalendarExpanded] = useState(false);
   const calendarCursorMonthKey = useMemo(() => {
     return calendarCursor.format('YYYY-MM');
@@ -1098,28 +1108,41 @@ export const EditorJournalPanel = () => {
       data-is-journal={isJournal}
       data-testid="sidebar-journal-panel"
     >
-      <div data-mobile={mobile} className={styles.calendar}>
-        <div className={styles.calendarActions}>
-          <IconButton
-            className={styles.calendarExpandButton}
-            aria-label="Open full page calendar"
-            onClick={() => setCalendarExpanded(true)}
-          >
-            <ExpandFullIcon />
-          </IconButton>
+      {mobile ? (
+        // mobile keeps the compact picker with an expandable overlay
+        <div data-mobile={mobile} className={styles.calendar}>
+          <div className={styles.calendarActions}>
+            <IconButton
+              className={styles.calendarExpandButton}
+              aria-label="Open full page calendar"
+              onClick={() => setCalendarExpanded(true)}
+            >
+              <ExpandFullIcon />
+            </IconButton>
+          </div>
+          <DatePicker
+            weekDays={t['com.affine.calendar-date-picker.week-days']()}
+            monthNames={t['com.affine.calendar-date-picker.month-names']()}
+            todayLabel={t['com.affine.calendar-date-picker.today']()}
+            customDayRenderer={customDayRenderer}
+            value={selectedDate.format('YYYY-MM-DD')}
+            onChange={onDateSelect}
+            onCursorChange={setCalendarCursor}
+            cellSize={34}
+          />
         </div>
-        <DatePicker
-          weekDays={t['com.affine.calendar-date-picker.week-days']()}
-          monthNames={t['com.affine.calendar-date-picker.month-names']()}
-          todayLabel={t['com.affine.calendar-date-picker.today']()}
-          customDayRenderer={customDayRenderer}
-          value={selectedDate.format('YYYY-MM-DD')}
-          onChange={onDateSelect}
+      ) : (
+        // desktop: the tagged full-month view lives directly in the panel,
+        // below the sidebar tab icons — no expand/collapse
+        <FullMonthCalendarView
+          inline
+          selectedDate={selectedDate}
+          cursor={calendarCursor}
           onCursorChange={setCalendarCursor}
-          cellSize={34}
+          onDateSelect={onDateSelect}
         />
-      </div>
-      {calendarExpanded ? (
+      )}
+      {mobile && calendarExpanded ? (
         <FullMonthCalendarView
           selectedDate={selectedDate}
           cursor={calendarCursor}
@@ -1128,11 +1151,17 @@ export const EditorJournalPanel = () => {
           onClose={() => setCalendarExpanded(false)}
         />
       ) : null}
-      <JournalTemplateOnboarding />
-      <JournalConflictBlock date={selectedDate} />
-      <CalendarEvents date={selectedDate} />
-      <JournalDailyCountBlock date={selectedDate} />
-      <JournalTemplateSetting />
+      {mobile ? (
+        // desktop shows only the full-month calendar; these auxiliary
+        // blocks remain on mobile's compact layout
+        <>
+          <JournalTemplateOnboarding />
+          <JournalConflictBlock date={selectedDate} />
+          <CalendarEvents date={selectedDate} />
+          <JournalDailyCountBlock date={selectedDate} />
+          <JournalTemplateSetting />
+        </>
+      ) : null}
     </div>
   );
 };

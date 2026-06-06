@@ -1,6 +1,6 @@
 import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
-import { style, styleVariants } from '@vanilla-extract/css';
+import { globalStyle, style, styleVariants } from '@vanilla-extract/css';
 
 const interactive = style({
   position: 'relative',
@@ -627,6 +627,32 @@ export const fullCalendarWeekRow = style({
   gridTemplateColumns: 'repeat(7, minmax(0, 1fr))',
   minHeight: 100,
   borderBottom: `1px solid ${cssVar('borderColor')}`,
+});
+
+/**
+ * Inline (in-panel) variant: rendered directly inside the sidebar journal
+ * panel below the tab icons, instead of a fixed full-viewport overlay.
+ */
+export const fullCalendarInline = style({
+  position: 'relative',
+  display: 'flex',
+  flexDirection: 'column',
+  width: '100%',
+  // stretch to fill the whole panel height; week rows share it evenly
+  flex: '1 1 auto',
+  minHeight: 0,
+  boxSizing: 'border-box',
+  outline: 'none',
+  padding: '0 4px 8px',
+});
+
+globalStyle(`${fullCalendarInline} ${fullCalendarTitle}`, {
+  fontSize: 16,
+  lineHeight: '24px',
+});
+
+globalStyle(`${fullCalendarInline} ${fullCalendarWeekRow}`, {
+  minHeight: 72,
 });
 
 export const fullCalendarDayCell = style([
