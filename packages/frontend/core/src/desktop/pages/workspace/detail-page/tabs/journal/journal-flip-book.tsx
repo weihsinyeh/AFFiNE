@@ -1,6 +1,7 @@
 import { IconButton } from '@affine/component';
 import { type DocRecord, DocsService } from '@affine/core/modules/doc';
 import { JournalService } from '@affine/core/modules/journal';
+import { Text } from '@blocksuite/affine/store';
 import {
   ArrowLeftSmallIcon,
   ArrowRightSmallIcon,
@@ -58,18 +59,23 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
   );
 
   const [content, setContent] = useState('');
+  const storeRef = useRef<any>(null);
+  const isEditingRef = useRef(false);
 
   useEffect(() => {
     if (!journalDoc) {
       setContent('');
+      storeRef.current = null;
       return;
     }
     let cleanup: (() => void) | undefined;
     try {
       const { doc, release } = docsService.open(journalDoc.id);
       const store = doc.blockSuiteDoc;
+      storeRef.current = store;
       store.load();
       const read = () => {
+        if (isEditingRef.current) return;
         const blocks = [
           ...store.getBlocksByFlavour('affine:paragraph'),
           ...store.getBlocksByFlavour('affine:list'),
@@ -90,12 +96,51 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
       cleanup = () => {
         sub.unsubscribe();
         release();
+        storeRef.current = null;
       };
     } catch {
       setContent('');
     }
     return () => cleanup?.();
   }, [journalDoc, docsService]);
+
+  const syncContent = useCallback(
+    (newContent: string) => {
+      const store = storeRef.current;
+      if (!store) {
+        // Journal doc doesn't exist yet; create it if user typed something
+        if (newContent.trim()) journalService.ensureJournalByDate(dateKey);
+        return;
+      }
+      try {
+        const paragraphs = store.getBlocksByFlavour('affine:paragraph');
+        const notes = store.getBlocksByFlavour('affine:note');
+        if (!notes.length) return;
+
+        if (paragraphs.length > 0) {
+          // Write all content into the first paragraph, clear the rest
+          const firstText = (paragraphs[0].model as { text?: Text }).text;
+          if (firstText) {
+            firstText.delete(0, firstText.length);
+            if (newContent) firstText.insert(newContent, 0);
+          }
+          for (let i = 1; i < paragraphs.length; i++) {
+            const t = (paragraphs[i].model as { text?: Text }).text;
+            if (t) t.delete(0, t.length);
+          }
+        } else if (newContent.trim()) {
+          store.addBlock(
+            'affine:paragraph',
+            { text: new Text(newContent) },
+            notes[0].id
+          );
+        }
+      } catch (e) {
+        console.error('flip book sync failed', e);
+      }
+    },
+    [journalService, dateKey]
+  );
 
   const d = dayjs(dateKey);
 
@@ -111,15 +156,22 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
         </div>
       </div>
       <div className={styles.flipBookPageDivider} />
-      <div className={styles.flipBookPageText}>
-        {content ? (
-          content
-        ) : (
-          <span className={styles.flipBookPageEmpty}>
-            No entry for this day…
-          </span>
-        )}
-      </div>
+      <textarea
+        className={styles.flipBookPageTextarea}
+        value={content}
+        onChange={e => setContent(e.target.value)}
+        onFocus={() => {
+          isEditingRef.current = true;
+        }}
+        onBlur={e => {
+          isEditingRef.current = false;
+          syncContent(e.target.value);
+        }}
+        placeholder="No entry for this day…"
+        onMouseDown={e => e.stopPropagation()}
+        onTouchStart={e => e.stopPropagation()}
+        spellCheck={false}
+      />
     </div>
   );
 };
@@ -251,9 +303,9 @@ export const JournalFlipBook = ({
 
   // Nearest journal days
   const prevJournalDay = useMemo(() => {
-    const sorted = Array.from(allJournalDates).sort((a, b) =>
-      a.localeCompare(b)
-    );
+    const sorted = Array.from(allJournalDates)
+      .filter((d): d is string => !!d)
+      .sort((a, b) => a.localeCompare(b));
     for (let i = sorted.length - 1; i >= 0; i--) {
       if (sorted[i] < currentDay) return sorted[i];
     }
@@ -261,9 +313,9 @@ export const JournalFlipBook = ({
   }, [allJournalDates, currentDay]);
 
   const nextJournalDay = useMemo(() => {
-    const sorted = Array.from(allJournalDates).sort((a, b) =>
-      a.localeCompare(b)
-    );
+    const sorted = Array.from(allJournalDates)
+      .filter((d): d is string => !!d)
+      .sort((a, b) => a.localeCompare(b));
     for (const date of sorted) {
       if (date > currentDay) return date;
     }

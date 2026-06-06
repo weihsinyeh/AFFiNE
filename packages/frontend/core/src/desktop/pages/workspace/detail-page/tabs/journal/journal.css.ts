@@ -1090,6 +1090,28 @@ export const flipBookPageText = style({
   whiteSpace: 'pre-wrap',
 });
 
+export const flipBookPageTextarea = style({
+  flex: '1 1 auto',
+  width: '100%',
+  resize: 'none',
+  border: 'none',
+  outline: 'none',
+  background: 'transparent',
+  fontSize: 10,
+  lineHeight: '22px',
+  color: cssVarV2.text.primary,
+  fontFamily: 'inherit',
+  padding: 0,
+  overflow: 'hidden',
+  wordBreak: 'break-word',
+  selectors: {
+    '&::placeholder': {
+      color: cssVar('textSecondaryColor'),
+      fontStyle: 'italic',
+    },
+  },
+});
+
 export const flipBookPageEmpty = style({
   color: cssVar('textSecondaryColor'),
   fontStyle: 'italic',
