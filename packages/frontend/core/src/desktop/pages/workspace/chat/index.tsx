@@ -17,6 +17,7 @@ import { NotificationServiceImpl } from '@affine/core/blocksuite/view-extensions
 import { useAIChatConfig } from '@affine/core/components/hooks/affine/use-ai-chat-config';
 import { useAISpecs } from '@affine/core/components/hooks/affine/use-ai-specs';
 import { useAISubscribe } from '@affine/core/components/hooks/affine/use-ai-subscribe';
+import { useCreateSmartTodos } from '@affine/core/components/hooks/affine/use-create-smart-todos';
 import {
   AIDraftService,
   AIToolsConfigService,
@@ -106,6 +107,7 @@ export const Component = () => {
   const workspaceId = useService(WorkspaceService).workspace.id;
 
   const aiModelService = useService(AIModelService);
+  const createSmartTodos = useCreateSmartTodos();
   const runtime = useMemo(
     () =>
       new AIChatRuntime({
@@ -113,8 +115,9 @@ export const Component = () => {
         scope: { kind: 'workspace', workspaceId },
         strategy: new WorkspaceAIChatSessionStrategy(),
         getGeminiApiKey: () => aiModelService.geminiApiKey,
+        createSmartTodos,
       }),
-    [aiModelService, requestService, workspaceId]
+    [aiModelService, createSmartTodos, requestService, workspaceId]
   );
   const snapshot = useAIChatRuntime(runtime);
   const session =

@@ -46,6 +46,7 @@ export type AIChatAction =
   | { type: 'setComposerText'; text: string }
   | { type: 'setReasoning'; reasoning: boolean }
   | { type: 'setModel'; modelId?: string }
+  | { type: 'setSmartTodo'; value: boolean }
   | { type: 'addAttachment'; attachment: string | Blob | File }
   | { type: 'removeAttachment'; index: number }
   | { type: 'addContextItem'; item: AIChatContextItem }

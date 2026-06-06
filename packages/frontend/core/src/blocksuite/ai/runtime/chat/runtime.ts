@@ -3,7 +3,10 @@ import type { CopilotChatHistoryFragment } from '@affine/graphql';
 import type { AIRequestService } from '../request';
 import {
   buildGeminiContents,
+  buildSmartTodoPrompt,
   isGeminiDirectModel,
+  type SmartTodoExtraction,
+  type SmartTodoItem,
   streamGeminiChat,
 } from '../request/gemini-direct';
 import type { AIChatAction, AIChatSendOptions } from './actions';
@@ -30,6 +33,14 @@ type RuntimeOptions = {
    * streamed directly from the Gemini API instead of the AFFiNE backend.
    */
   getGeminiApiKey?: () => string | undefined;
+  /**
+   * Create per-day Todo docs on the journal calendar for the
+   * "智慧增加todo list" chat mode. Returns the number of tasks created per
+   * date. When absent the mode is unavailable in this surface.
+   */
+  createSmartTodos?: (
+    todos: SmartTodoItem[]
+  ) => Promise<{ date: string; count: number }[]>;
 };
 
 type ContextStatus = 'finished' | 'processing' | 'failed';
@@ -79,6 +90,11 @@ export class AIChatRuntime {
   }
 
   getSnapshot = () => this.snapshot;
+
+  /** Whether this surface can create smart todos ("智慧增加todo list"). */
+  get supportsSmartTodos() {
+    return !!this.options.createSmartTodos;
+  }
 
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
@@ -165,6 +181,9 @@ export class AIChatRuntime {
         return;
       case 'setModel':
         this.updateComposer({ modelId: action.modelId });
+        return;
+      case 'setSmartTodo':
+        this.updateComposer({ smartTodo: action.value });
         return;
       case 'addAttachment':
         this.updateComposer({
@@ -381,6 +400,10 @@ export class AIChatRuntime {
     });
     try {
       const modelId = options.modelId ?? this.snapshot.composer.modelId;
+      if (this.snapshot.composer.smartTodo && this.options.createSmartTodos) {
+        await this.sendSmartTodo(content, modelId, seq);
+        return;
+      }
       if (isGeminiDirectModel(modelId)) {
         // Gemini models bypass the AFFiNE backend entirely
         await this.sendViaGemini(modelId, seq);
@@ -439,6 +462,79 @@ export class AIChatRuntime {
       if (seq !== this.requestSeq) return;
       this.commit({ status: 'error', error: this.toError(error) });
     }
+  }
+
+  /**
+   * "智慧增加todo list" mode: ask Gemini to extract per-day todo items from
+   * the user's natural-language message, create the Todo docs on the journal
+   * calendar, and reply with a confirmation in the chat.
+   */
+  private async sendSmartTodo(
+    content: string,
+    modelId: string | undefined,
+    seq: number
+  ) {
+    const apiKey = this.options.getGeminiApiKey?.();
+    if (!apiKey) {
+      throw new Error(
+        'No Gemini API key found. Add one in Settings → General → API Key.'
+      );
+    }
+    const geminiModel = isGeminiDirectModel(modelId)
+      ? modelId
+      : 'gemini-2.5-flash';
+    const prompt = buildSmartTodoPrompt(content, new Date());
+    let resultString = '';
+    const stream = streamGeminiChat({
+      apiKey,
+      modelId: geminiModel,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      signal: this.streamAbortController?.signal,
+    });
+    for await (const chunk of stream) {
+      if (seq !== this.requestSeq) return;
+      resultString += chunk;
+      this.commit({ status: 'transmitting' });
+    }
+    if (seq !== this.requestSeq) return;
+
+    const matchJson = resultString.match(/\{[\s\S]*\}/);
+    if (!matchJson) {
+      throw new Error(`無法解析 AI 回應：${resultString.slice(0, 200)}`);
+    }
+    const parsed = JSON.parse(matchJson[0]) as SmartTodoExtraction;
+    const todos = (parsed.todos ?? []).filter(
+      todo =>
+        /^\d{4}-\d{2}-\d{2}$/.test(todo?.date ?? '') &&
+        Array.isArray(todo.tasks) &&
+        todo.tasks.length > 0
+    );
+
+    let summary = '';
+    if (todos.length > 0) {
+      const created = await this.options.createSmartTodos?.(todos);
+      if (seq !== this.requestSeq) return;
+      if (created?.length) {
+        summary = [
+          '',
+          '✅ 已加入行事曆：',
+          ...created.map(item => `- **${item.date}**：${item.count} 項任務`),
+        ].join('\n');
+      }
+    } else {
+      summary = '\n（這次沒有偵測到可加入行事曆的待辦事項）';
+    }
+
+    this.appendAssistantContent(`${parsed.reply ?? '完成！'}\n${summary}`);
+    this.commit({
+      status: 'success',
+      tabs: this.markActiveTabHasMessages(this.snapshot.tabs),
+      composer: {
+        ...this.snapshot.composer,
+        text: '',
+        attachments: [],
+      },
+    });
   }
 
   /**

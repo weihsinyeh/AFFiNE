@@ -8,6 +8,7 @@ import { openFilesWith } from '@blocksuite/affine/shared/utils';
 import { ShadowlessElement } from '@blocksuite/affine/std';
 import type { DocMeta } from '@blocksuite/affine/store';
 import {
+  CheckBoxCheckLinearIcon,
   CollectionsIcon,
   ImageIcon,
   MoreHorizontalIcon,
@@ -206,8 +207,30 @@ export class ChatPanelAddPopover extends SignalWatcher(
     ],
   };
 
+  private get _smartTodoGroup(): MenuGroup | null {
+    if (!this.onToggleSmartTodo) return null;
+    return {
+      name: 'Smart Actions',
+      items: [
+        {
+          key: 'smart-todo',
+          name: this.smartTodoActive
+            ? '智慧增加todo list（開啟中，點擊關閉）'
+            : '智慧增加todo list',
+          testId: 'ai-chat-smart-todo',
+          icon: CheckBoxCheckLinearIcon(),
+          action: () => {
+            this.abortController.abort();
+            this.onToggleSmartTodo?.();
+          },
+        },
+      ],
+    };
+  }
+
   private get _menuGroup() {
     let groups: MenuGroup[] = [];
+    const smartTodoGroup = this._smartTodoGroup;
 
     switch (this._mode) {
       case AddPopoverMode.Tags:
@@ -220,7 +243,12 @@ export class ChatPanelAddPopover extends SignalWatcher(
         if (this._query) {
           groups = [...this._searchGroups, this.uploadGroup];
         } else {
-          groups = [...this._searchGroups, this.tcGroup, this.uploadGroup];
+          groups = [
+            ...this._searchGroups,
+            this.tcGroup,
+            this.uploadGroup,
+            ...(smartTodoGroup ? [smartTodoGroup] : []),
+          ];
         }
     }
 
@@ -274,6 +302,12 @@ export class ChatPanelAddPopover extends SignalWatcher(
 
   @property({ attribute: false })
   accessor abortController!: AbortController;
+
+  @property({ attribute: false })
+  accessor smartTodoActive: boolean = false;
+
+  @property({ attribute: false })
+  accessor onToggleSmartTodo: (() => void) | undefined = undefined;
 
   @property({ attribute: 'data-testid', reflect: true })
   accessor testId: string = 'ai-search-input';

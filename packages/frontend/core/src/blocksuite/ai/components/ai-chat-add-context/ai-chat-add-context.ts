@@ -44,6 +44,12 @@ export class AIChatAddContext extends SignalWatcher(
   @property({ attribute: false })
   accessor portalContainer: HTMLElement | null = null;
 
+  @property({ attribute: false })
+  accessor smartTodoActive: boolean = false;
+
+  @property({ attribute: false })
+  accessor onToggleSmartTodo: (() => void) | undefined = undefined;
+
   @query('.ai-chat-add-context')
   accessor addButton!: HTMLDivElement;
 
@@ -82,6 +88,8 @@ export class AIChatAddContext extends SignalWatcher(
           .searchMenuConfig=${this.searchMenuConfig}
           .docDisplayConfig=${this.docDisplayConfig}
           .abortController=${this.abortController}
+          .smartTodoActive=${this.smartTodoActive}
+          .onToggleSmartTodo=${this.onToggleSmartTodo}
         ></chat-panel-add-popover>
       `,
       portalStyles: {

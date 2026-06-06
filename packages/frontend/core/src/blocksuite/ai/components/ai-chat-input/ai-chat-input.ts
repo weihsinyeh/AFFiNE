@@ -622,6 +622,11 @@ export class AIChatInput extends SignalWatcher(
             .docDisplayConfig=${this.docDisplayConfig}
             .searchMenuConfig=${this.searchMenuConfig}
             .portalContainer=${this.portalContainer}
+            .smartTodoActive=${this.runtimeSnapshot?.composer.smartTodo ??
+            false}
+            .onToggleSmartTodo=${this.runtime?.supportsSmartTodos
+              ? this._toggleSmartTodo
+              : undefined}
           ></ai-chat-add-context>
         </div>
         <div class="chat-input-footer-spacer"></div>
@@ -792,6 +797,19 @@ export class AIChatInput extends SignalWatcher(
 
   private readonly _toggleReasoning = (extendedThinking: boolean) => {
     this.reasoningConfig.setEnabled(extendedThinking);
+  };
+
+  private readonly _toggleSmartTodo = () => {
+    if (!this.runtime) return;
+    const next = !this.runtime.getSnapshot().composer.smartTodo;
+    this.runtime
+      .dispatch({ type: 'setSmartTodo', value: next })
+      .catch(console.error);
+    this.notificationService.toast(
+      next
+        ? '智慧增加todo list 已開啟：用自然語言描述要做的事和日期，我會幫你加到行事曆'
+        : '智慧增加todo list 已關閉'
+    );
   };
 
   private readonly _handleImageRemove = (index: number) => {

@@ -137,6 +137,11 @@ export type AIChatComposerState = {
   reasoning: boolean;
   toolsConfig?: AIToolsConfig;
   modelId?: string;
+  /**
+   * "智慧增加todo list" mode: messages are analysed by Gemini and turned
+   * into per-day Todo docs on the journal calendar.
+   */
+  smartTodo?: boolean;
 };
 
 export type AIChatNavigationRequest = {

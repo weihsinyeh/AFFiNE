@@ -53,6 +53,46 @@ export function getDocAiGeminiModelId(): string {
   );
 }
 
+export type SmartTodoItem = {
+  /** YYYY-MM-DD */
+  date: string;
+  tasks: string[];
+};
+
+export type SmartTodoExtraction = {
+  reply?: string;
+  todos?: SmartTodoItem[];
+};
+
+/**
+ * Prompt for the "智慧增加todo list" chat mode: extract per-day todo items
+ * (resolving relative dates against the current date) plus a short
+ * conversational reply.
+ */
+export function buildSmartTodoPrompt(text: string, now: Date): string {
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const weekday = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ][now.getDay()];
+  return `你是一個行事曆待辦助理。今天是 ${today}（${weekday}）。
+使用者會用自然語言描述想做的事情，可能包含相對日期（例如「明天」「下週三」「這個週末」）。請：
+1. 把內容拆解成一條一條具體的待辦任務，並依日期分組。相對日期一律換算成絕對日期（YYYY-MM-DD）。沒提到日期的任務歸到今天。
+2. 用一句友善的話回覆使用者（與使用者相同的語言），總結你幫他安排了什麼。
+
+嚴格以標準 JSON 物件回傳，不要包含任何 markdown 標籤。格式範例：
+{"reply":"好的，我幫你安排了…","todos":[{"date":"2026-06-08","tasks":["買牛奶","回信給教授"]}]}
+如果完全沒有可加入的待辦事項，回傳 {"reply":"...","todos":[]}。
+
+使用者的訊息：
+${text}`;
+}
+
 /**
  * Compose a standalone prompt for an in-doc /ai action. The backend
  * normally expands a prompt template identified by `promptName`; the
