@@ -1,11 +1,6 @@
 import { cssVar } from '@toeverything/theme';
 import { cssVarV2 } from '@toeverything/theme/v2';
-import {
-  globalStyle,
-  keyframes,
-  style,
-  styleVariants,
-} from '@vanilla-extract/css';
+import { globalStyle, style, styleVariants } from '@vanilla-extract/css';
 
 const interactive = style({
   position: 'relative',
@@ -867,18 +862,9 @@ export const fullCalendarAgendaMore = style({
 
 // ── 3-D Flip Book ──────────────────────────────────────────────────────────
 //
-// Using CSS @keyframes (not transition) so the animation starts automatically
-// the moment the flip element is mounted, without a two-step state trick.
-
-const flipForwardAnim = keyframes({
-  from: { transform: 'rotateY(0deg)' },
-  to: { transform: 'rotateY(-180deg)' },
-});
-
-const flipBackwardAnim = keyframes({
-  from: { transform: 'rotateY(0deg)' },
-  to: { transform: 'rotateY(180deg)' },
-});
+// Transform is driven by inline style (drag angle) + CSS transition for
+// snap-back / completion. No keyframe animations — the drag interaction
+// updates rotateY in real time via React state.
 
 export const flipBookOverlay = style({
   width: '100%',
@@ -935,6 +921,7 @@ export const flipBookContainer = style({
   display: 'flex',
   flexDirection: 'row',
   perspective: '1200px',
+  userSelect: 'none',
   // book drop-shadow
   filter: 'drop-shadow(0 6px 18px rgba(0,0,0,0.22))',
 });
@@ -993,18 +980,16 @@ export const flipBookFlipEl = style({
   zIndex: 5,
 });
 
-/** Forward flip: right page turns left → tomorrow. Pivot = book spine. */
+/** Forward flip: right page turns left → next journal day. Pivot = book spine. */
 export const flipBookFlipElForward = style({
   left: 'calc(50% + 2px)',
   transformOrigin: 'left center',
-  animation: `${flipForwardAnim} 0.65s cubic-bezier(0.645, 0.045, 0.355, 1) forwards`,
 });
 
-/** Backward flip: left page turns right → yesterday. Pivot = book spine. */
+/** Backward flip: left page turns right → previous journal day. Pivot = book spine. */
 export const flipBookFlipElBackward = style({
   left: 0,
   transformOrigin: 'right center',
-  animation: `${flipBackwardAnim} 0.65s cubic-bezier(0.645, 0.045, 0.355, 1) forwards`,
 });
 
 /** Front face of the flip element (visible at the start of the turn). */

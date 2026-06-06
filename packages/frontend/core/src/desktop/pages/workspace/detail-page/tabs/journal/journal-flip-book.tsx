@@ -9,7 +9,7 @@ import {
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import * as styles from './journal.css';
 
@@ -203,28 +203,26 @@ const RightPageContent = ({ dateKey }: { dateKey: string }) => {
 
 // ── Main flip book component ───────────────────────────────────────────────
 //
-// BOOK SPREAD (one day = one spread):
+// BOOK SPREAD — drag interaction:
 //
 //  ┌───────────────┬───────────────┐
 //  │  LEFT PAGE    │  RIGHT PAGE   │
 //  │  (Journal)    │  (Tasks +     │
 //  │               │   Meetings)   │
-//  │  ← click to  │  click to →   │
-//  │  go YESTERDAY │  go TOMORROW  │
+//  │  drag →       │  ← drag       │
+//  │  prev journal │  next journal │
 //  └───────────────┴───────────────┘
 //
-// ANIMATION:
-//  - Forward (click right): a flip element covering the right half rotates
-//    rotateY(0 → -180deg) around its left edge (book spine).
-//    Front face = today's right content.
-//    Back face  = tomorrow's left content.
-//    The static right page pre-loads tomorrow's right content (hidden underneath).
-//
-//  - Backward (click left): a flip element covering the left half rotates
-//    rotateY(0 → 180deg) around its right edge (book spine).
-//    Front face = today's left content.
-//    Back face  = yesterday's right content.
-//    The static left page pre-loads yesterday's left content (hidden underneath).
+// Drag LEFT page rightward  → backward flip to previous journal day.
+// Drag RIGHT page leftward  → forward flip to next journal day.
+// Release past 50% → completes; release before 50% → snaps back.
+
+type FlipState = {
+  dir: 'forward' | 'backward';
+  angle: number; // 0–180
+  target: string;
+  phase: 'dragging' | 'completing' | 'snapping';
+};
 
 export const JournalFlipBook = ({
   selectedDate,
@@ -241,22 +239,21 @@ export const JournalFlipBook = ({
   const [currentDay, setCurrentDay] = useState(
     selectedDate.format('YYYY-MM-DD')
   );
-  const [nextDay, setNextDay] = useState<string | null>(null);
-  const [isFlipping, setIsFlipping] = useState(false);
-  const [flipDir, setFlipDir] = useState<'forward' | 'backward'>('forward');
+  const [flipState, setFlipState] = useState<FlipState | null>(null);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dragStartXRef = useRef(0);
 
   // Keep currentDay in sync when selectedDate changes externally
   useEffect(() => {
-    const d = selectedDate.format('YYYY-MM-DD');
-    if (!isFlipping) setCurrentDay(d);
-  }, [selectedDate, isFlipping]);
+    if (!flipState) setCurrentDay(selectedDate.format('YYYY-MM-DD'));
+  }, [selectedDate, flipState]);
 
-  // Find nearest journal day strictly before / after currentDay.
+  // Nearest journal days
   const prevJournalDay = useMemo(() => {
     const sorted = Array.from(allJournalDates).sort((a, b) =>
       a.localeCompare(b)
     );
-    // Walk backward from the end to find the largest date < currentDay
     for (let i = sorted.length - 1; i >= 0; i--) {
       if (sorted[i] < currentDay) return sorted[i];
     }
@@ -267,49 +264,162 @@ export const JournalFlipBook = ({
     const sorted = Array.from(allJournalDates).sort((a, b) =>
       a.localeCompare(b)
     );
-    // Walk forward from the start to find the smallest date > currentDay
     for (const date of sorted) {
       if (date > currentDay) return date;
     }
     return null;
   }, [allJournalDates, currentDay]);
 
-  const flipTo = useCallback(
-    (targetDay: string | null, dir: 'forward' | 'backward') => {
-      if (isFlipping || !targetDay) return;
-      setNextDay(targetDay);
-      setFlipDir(dir);
-      setIsFlipping(true);
+  // ── Mouse/touch drag handlers ──────────────────────────────────────────
+  const handleLeftMouseDown = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      if (!prevJournalDay || flipState) return;
+      e.preventDefault();
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      dragStartXRef.current = clientX;
+      setFlipState({
+        dir: 'backward',
+        angle: 0,
+        target: prevJournalDay,
+        phase: 'dragging',
+      });
     },
-    [isFlipping]
+    [flipState, prevJournalDay]
   );
 
-  const handleAnimationEnd = useCallback(
-    (e: React.AnimationEvent<HTMLDivElement>) => {
-      // Only react to the flip element's own animation, not children
-      if (e.target !== e.currentTarget) return;
-      if (!nextDay) return;
-      const settled = nextDay;
-      setCurrentDay(settled);
-      setNextDay(null);
-      setIsFlipping(false);
-      onDateSelect(settled);
+  const handleRightMouseDown = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      if (!nextJournalDay || flipState) return;
+      e.preventDefault();
+      const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      dragStartXRef.current = clientX;
+      setFlipState({
+        dir: 'forward',
+        angle: 0,
+        target: nextJournalDay,
+        phase: 'dragging',
+      });
     },
-    [nextDay, onDateSelect]
+    [flipState, nextJournalDay]
   );
 
-  // During animation, pre-load the destination day's content on the static page
-  // that will be revealed after the flip.
-  // - Forward flip: static right page shows nextDay's right (becomes visible after flip)
-  // - Backward flip: static left page shows nextDay's left (becomes visible after flip)
+  // Attach document-level move/up listeners while dragging
+  useEffect(() => {
+    if (!flipState || flipState.phase !== 'dragging') return;
+    const { dir } = flipState;
+
+    const update = (clientX: number) => {
+      const halfWidth = (containerRef.current?.offsetWidth ?? 400) / 2;
+      const rawDelta =
+        dir === 'backward'
+          ? clientX - dragStartXRef.current
+          : dragStartXRef.current - clientX;
+      const angle = Math.max(0, Math.min(180, (rawDelta / halfWidth) * 180));
+      setFlipState(s => (s && s.phase === 'dragging' ? { ...s, angle } : s));
+    };
+
+    const release = (currentAngle: number) => {
+      const completing = currentAngle >= 90;
+      setFlipState(s => {
+        if (!s || s.phase !== 'dragging') return s;
+        return {
+          ...s,
+          phase: completing ? 'completing' : 'snapping',
+          angle: completing ? 180 : 0,
+        };
+      });
+    };
+
+    const onMouseMove = (e: MouseEvent) => update(e.clientX);
+    const onMouseUp = (e: MouseEvent) => {
+      const halfWidth = (containerRef.current?.offsetWidth ?? 400) / 2;
+      const rawDelta =
+        dir === 'backward'
+          ? e.clientX - dragStartXRef.current
+          : dragStartXRef.current - e.clientX;
+      const angle = Math.max(0, Math.min(180, (rawDelta / halfWidth) * 180));
+      release(angle);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      update(e.touches[0].clientX);
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      const halfWidth = (containerRef.current?.offsetWidth ?? 400) / 2;
+      const rawDelta =
+        dir === 'backward'
+          ? e.changedTouches[0].clientX - dragStartXRef.current
+          : dragStartXRef.current - e.changedTouches[0].clientX;
+      const angle = Math.max(0, Math.min(180, (rawDelta / halfWidth) * 180));
+      release(angle);
+    };
+
+    // Show grabbing cursor on body during drag
+    document.body.style.cursor = 'grabbing';
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('touchend', onTouchEnd);
+    return () => {
+      document.body.style.cursor = '';
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+    };
+  }, [flipState]);
+
+  // After snap/complete: wait for the CSS transition then commit
+  useEffect(() => {
+    if (!flipState || flipState.phase === 'dragging') return;
+    const { phase, target } = flipState;
+    const timeout = setTimeout(() => {
+      if (phase === 'completing') {
+        setCurrentDay(target);
+        onDateSelect(target);
+      }
+      setFlipState(null);
+    }, 380);
+    return () => clearTimeout(timeout);
+  }, [flipState, onDateSelect]);
+
+  // Immediate flip for ← → nav buttons (no drag)
+  const flipImmediate = useCallback(
+    (dir: 'forward' | 'backward') => {
+      const target = dir === 'backward' ? prevJournalDay : nextJournalDay;
+      if (!target || flipState) return;
+      setFlipState({ dir, angle: 0, target, phase: 'completing' });
+      requestAnimationFrame(() => {
+        setFlipState(s =>
+          s && s.phase === 'completing' ? { ...s, angle: 180 } : s
+        );
+      });
+    },
+    [flipState, prevJournalDay, nextJournalDay]
+  );
+
+  // ── Derived display values ─────────────────────────────────────────────
   const staticLeftDay =
-    isFlipping && flipDir === 'backward' ? (nextDay ?? currentDay) : currentDay;
+    flipState?.dir === 'backward' ? flipState.target : currentDay;
   const staticRightDay =
-    isFlipping && flipDir === 'forward' ? (nextDay ?? currentDay) : currentDay;
+    flipState?.dir === 'forward' ? flipState.target : currentDay;
 
-  // Flip element content
-  const flipFrontDay = currentDay;
-  const flipBackDay = nextDay ?? currentDay;
+  const flipRotateY = flipState
+    ? flipState.dir === 'backward'
+      ? flipState.angle
+      : -flipState.angle
+    : 0;
+
+  const flipElementStyle: React.CSSProperties | undefined = flipState
+    ? {
+        transform: `rotateY(${flipRotateY}deg)`,
+        transition:
+          flipState.phase !== 'dragging'
+            ? 'transform 0.35s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+            : 'none',
+      }
+    : undefined;
 
   return (
     <div className={styles.flipBookOverlay}>
@@ -323,26 +433,21 @@ export const JournalFlipBook = ({
       </div>
 
       <div className={styles.flipBookBody}>
-        <div className={styles.flipBookContainer}>
-          {/* ── Static left page ─────────────────────────────────── */}
+        <div ref={containerRef} className={styles.flipBookContainer}>
+          {/* ── Static left page — drag rightward to go back ─────── */}
           <div
             className={clsx(
               styles.flipBookStaticPage,
               styles.flipBookStaticLeft,
-              !isFlipping && prevJournalDay && styles.flipBookPageClickable
+              !flipState && prevJournalDay && styles.flipBookPageClickable
             )}
-            onClick={() => !isFlipping && flipTo(prevJournalDay, 'backward')}
-            role="button"
-            tabIndex={isFlipping || !prevJournalDay ? -1 : 0}
-            aria-label="Go to previous journal day"
-            aria-disabled={!prevJournalDay}
-            onKeyDown={e => {
-              if (
-                !isFlipping &&
-                (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowLeft')
-              )
-                flipTo(prevJournalDay, 'backward');
+            style={{
+              cursor: !flipState && prevJournalDay ? 'grab' : 'default',
             }}
+            onMouseDown={handleLeftMouseDown}
+            onTouchStart={handleLeftMouseDown}
+            aria-label="Drag right to go to previous journal day"
+            aria-disabled={!prevJournalDay}
           >
             <LeftPageContent dateKey={staticLeftDay} />
           </div>
@@ -350,54 +455,47 @@ export const JournalFlipBook = ({
           {/* ── Book spine ───────────────────────────────────────── */}
           <div className={styles.flipBookSpine} />
 
-          {/* ── Static right page ────────────────────────────────── */}
+          {/* ── Static right page — drag leftward to go forward ──── */}
           <div
             className={clsx(
               styles.flipBookStaticPage,
               styles.flipBookStaticRight,
-              !isFlipping && nextJournalDay && styles.flipBookPageClickable
+              !flipState && nextJournalDay && styles.flipBookPageClickable
             )}
-            onClick={() => !isFlipping && flipTo(nextJournalDay, 'forward')}
-            role="button"
-            tabIndex={isFlipping || !nextJournalDay ? -1 : 0}
-            aria-label="Go to next journal day"
-            aria-disabled={!nextJournalDay}
-            onKeyDown={e => {
-              if (
-                !isFlipping &&
-                (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowRight')
-              )
-                flipTo(nextJournalDay, 'forward');
+            style={{
+              cursor: !flipState && nextJournalDay ? 'grab' : 'default',
             }}
+            onMouseDown={handleRightMouseDown}
+            onTouchStart={handleRightMouseDown}
+            aria-label="Drag left to go to next journal day"
+            aria-disabled={!nextJournalDay}
           >
             <RightPageContent dateKey={staticRightDay} />
           </div>
 
-          {/* ── Flip element (only during animation) ─────────────── */}
-          {isFlipping && (
+          {/* ── Flip element (mounted while dragging / animating) ─── */}
+          {flipState && (
             <div
               className={clsx(
                 styles.flipBookFlipEl,
-                flipDir === 'forward'
+                flipState.dir === 'forward'
                   ? styles.flipBookFlipElForward
                   : styles.flipBookFlipElBackward
               )}
-              onAnimationEnd={handleAnimationEnd}
+              style={flipElementStyle}
             >
-              {/* Front face (visible at start) */}
               <div className={styles.flipBookFlipFront}>
-                {flipDir === 'forward' ? (
-                  <RightPageContent dateKey={flipFrontDay} />
+                {flipState.dir === 'forward' ? (
+                  <RightPageContent dateKey={currentDay} />
                 ) : (
-                  <LeftPageContent dateKey={flipFrontDay} />
+                  <LeftPageContent dateKey={currentDay} />
                 )}
               </div>
-              {/* Back face (visible when fully flipped) */}
               <div className={styles.flipBookFlipBack}>
-                {flipDir === 'forward' ? (
-                  <LeftPageContent dateKey={flipBackDay} />
+                {flipState.dir === 'forward' ? (
+                  <LeftPageContent dateKey={flipState.target} />
                 ) : (
-                  <RightPageContent dateKey={flipBackDay} />
+                  <RightPageContent dateKey={flipState.target} />
                 )}
               </div>
             </div>
@@ -408,8 +506,8 @@ export const JournalFlipBook = ({
         <div className={styles.flipBookNavRow}>
           <button
             className={styles.flipBookNavBtn}
-            disabled={isFlipping || !prevJournalDay}
-            onClick={() => flipTo(prevJournalDay, 'backward')}
+            disabled={!!flipState || !prevJournalDay}
+            onClick={() => flipImmediate('backward')}
             aria-label="Previous journal day"
           >
             <ArrowLeftSmallIcon />
@@ -419,8 +517,8 @@ export const JournalFlipBook = ({
           </span>
           <button
             className={styles.flipBookNavBtn}
-            disabled={isFlipping || !nextJournalDay}
-            onClick={() => flipTo(nextJournalDay, 'forward')}
+            disabled={!!flipState || !nextJournalDay}
+            onClick={() => flipImmediate('forward')}
             aria-label="Next journal day"
           >
             <ArrowRightSmallIcon />
