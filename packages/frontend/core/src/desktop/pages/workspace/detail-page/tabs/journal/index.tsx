@@ -711,6 +711,8 @@ const FullCalendarDayCell = ({
   const visibleEvents = events.slice(0, maxEvents);
   const hiddenCount = events.length - visibleEvents.length;
 
+  const isOnAllTodos = workbench.location$.value.pathname === '/all-todos';
+
   const handleCreateDoc = useCallback(
     (type: 'journal' | 'todo' | 'meeting') => {
       // Journal: one per day — create if absent, open either way.
@@ -719,9 +721,10 @@ const FullCalendarDayCell = ({
         workbench.openDoc(journalDoc.id, { at: 'active' });
         return;
       }
-      // Todo: one per day — if it already exists, go to the day's journal
-      // where the "Today's Tasks" section surfaces it.
+      // Todo: one per day — if it already exists, stay on All Todos or go to
+      // the day's journal where the "Today's Tasks" section surfaces it.
       if (type === 'todo' && todoDocs.length > 0) {
+        if (isOnAllTodos) return;
         const journalDoc = journalService.ensureJournalByDate(dateKey);
         workbench.openDoc(journalDoc.id, { at: 'active' });
         return;
@@ -773,10 +776,12 @@ const FullCalendarDayCell = ({
       const journalDoc = journalService.ensureJournalByDate(dateKey);
       journalService.setJournalDate(newDoc.id, dateKey);
       if (type === 'todo') {
-        // todos surface in the journal's "Today's Tasks" section — open the
-        // journal instead of the raw todo doc, and don't insert a
-        // linked-doc paragraph into the journal body
-        workbench.openDoc(journalDoc.id, { at: 'active' });
+        // When on All Todos, the new row appears reactively — no navigation needed.
+        if (!isOnAllTodos) {
+          // todos surface in the journal's "Today's Tasks" section — open the
+          // journal instead of the raw todo doc
+          workbench.openDoc(journalDoc.id, { at: 'active' });
+        }
       } else {
         docsService.addLinkedDoc(journalDoc.id, newDoc.id).catch(console.error);
         workbench.openDoc(newDoc.id, { at: 'active' });
@@ -786,6 +791,7 @@ const FullCalendarDayCell = ({
       dateKey,
       day,
       docsService,
+      isOnAllTodos,
       journalService,
       workbench,
       todoDocs,
