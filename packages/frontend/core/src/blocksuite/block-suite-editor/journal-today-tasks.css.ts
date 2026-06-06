@@ -96,3 +96,163 @@ export const openButton = style({
     color: cssVarV2('icon/primary'),
   },
 });
+
+// ── Metadata fields (Status / Priority / Deadline / Notes) ─────────────────
+
+export const metaSection = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 5,
+  marginTop: 8,
+  paddingTop: 8,
+  borderTop: `1px solid ${cssVarV2('layer/insideBorder/border')}`,
+});
+
+export const metaRow = style({
+  display: 'flex',
+  gap: 8,
+});
+
+export const metaField = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+  flex: 1,
+  minWidth: 0,
+});
+
+export const metaLabel = style({
+  fontSize: 10,
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.4px',
+  color: cssVar('textSecondaryColor'),
+});
+
+const metaSelectBase = style({
+  appearance: 'none',
+  border: `1px solid ${cssVar('borderColor')}`,
+  borderRadius: 4,
+  padding: '2px 18px 2px 6px',
+  fontSize: 11,
+  fontWeight: 500,
+  cursor: 'pointer',
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23888' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 5px center',
+  backgroundSize: '8px',
+  outline: 'none',
+  width: '100%',
+  selectors: {
+    '&:focus': { borderColor: cssVar('primaryColor') },
+  },
+});
+
+export const metaStatusSelect = style([
+  metaSelectBase,
+  {
+    selectors: {
+      '&[data-status=""]': {
+        background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23888' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 5px center`,
+        backgroundColor: cssVarV2('layer/background/primary'),
+        color: cssVar('textSecondaryColor'),
+        borderColor: cssVar('borderColor'),
+      },
+      '&[data-status="in-progress"]': {
+        background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%231d6fca' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 5px center`,
+        backgroundColor: 'rgba(59,130,246,0.10)',
+        color: '#1d6fca',
+        borderColor: 'rgba(59,130,246,0.35)',
+      },
+      '&[data-status="blocked"]': {
+        background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23c0392b' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 5px center`,
+        backgroundColor: 'rgba(239,68,68,0.10)',
+        color: '#c0392b',
+        borderColor: 'rgba(239,68,68,0.35)',
+      },
+      '&[data-status="under-review"]': {
+        background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23b45309' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 5px center`,
+        backgroundColor: 'rgba(245,158,11,0.10)',
+        color: '#b45309',
+        borderColor: 'rgba(245,158,11,0.35)',
+      },
+      '&[data-status="completed"]': {
+        background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23166534' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 5px center`,
+        backgroundColor: 'rgba(34,197,94,0.10)',
+        color: '#166534',
+        borderColor: 'rgba(34,197,94,0.35)',
+      },
+    },
+  },
+]);
+
+export const metaPrioritySelect = style([
+  metaSelectBase,
+  {
+    selectors: {
+      '&[data-priority=""]': {
+        background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23888' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 5px center`,
+        backgroundColor: cssVarV2('layer/background/primary'),
+        color: cssVar('textSecondaryColor'),
+        borderColor: cssVar('borderColor'),
+      },
+      '&[data-priority="high"]': {
+        background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23c0392b' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 5px center`,
+        backgroundColor: 'rgba(239,68,68,0.10)',
+        color: '#c0392b',
+        borderColor: 'rgba(239,68,68,0.35)',
+      },
+      '&[data-priority="medium"]': {
+        background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%23b45309' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 5px center`,
+        backgroundColor: 'rgba(245,158,11,0.10)',
+        color: '#b45309',
+        borderColor: 'rgba(245,158,11,0.35)',
+      },
+      '&[data-priority="low"]': {
+        background: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5' viewBox='0 0 8 5'%3E%3Cpath d='M1 1l3 3 3-3' stroke='%231d6fca' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 5px center`,
+        backgroundColor: 'rgba(59,130,246,0.10)',
+        color: '#1d6fca',
+        borderColor: 'rgba(59,130,246,0.35)',
+      },
+    },
+  },
+]);
+
+export const metaDateInput = style({
+  border: `1px solid ${cssVar('borderColor')}`,
+  borderRadius: 4,
+  padding: '2px 6px',
+  fontSize: 11,
+  color: cssVarV2('text/primary'),
+  background: 'transparent',
+  outline: 'none',
+  width: '100%',
+  boxSizing: 'border-box',
+  selectors: {
+    '&:focus': { borderColor: cssVar('primaryColor') },
+    '&::-webkit-calendar-picker-indicator': { opacity: 0.5, cursor: 'pointer' },
+  },
+});
+
+export const metaNotesInput = style({
+  border: `1px solid transparent`,
+  borderRadius: 4,
+  padding: '2px 6px',
+  fontSize: 11,
+  color: cssVarV2('text/primary'),
+  background: 'transparent',
+  outline: 'none',
+  width: '100%',
+  boxSizing: 'border-box',
+  selectors: {
+    '&::placeholder': {
+      color: cssVar('placeholderColor'),
+      fontStyle: 'italic',
+    },
+    '&:hover': { borderColor: cssVar('borderColor') },
+    '&:focus': {
+      borderColor: cssVar('primaryColor'),
+      background: cssVarV2('layer/background/primary'),
+    },
+  },
+});

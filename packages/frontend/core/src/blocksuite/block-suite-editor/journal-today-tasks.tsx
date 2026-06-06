@@ -1,5 +1,6 @@
 import { Checkbox } from '@affine/component';
 import { DocsService } from '@affine/core/modules/doc';
+import type { DocRecord } from '@affine/core/modules/doc/entities/record';
 import { JournalService } from '@affine/core/modules/journal';
 import { WorkbenchService } from '@affine/core/modules/workbench';
 import type { Store } from '@blocksuite/affine/store';
@@ -42,6 +43,100 @@ const collectTasks = (store: Store): TaskItem[] => {
   );
 };
 
+const STATUS_OPTIONS = [
+  { value: '', label: 'Not Started' },
+  { value: 'in-progress', label: 'In Progress' },
+  { value: 'blocked', label: 'Blocked' },
+  { value: 'under-review', label: 'Under Review' },
+  { value: 'completed', label: 'Completed' },
+] as const;
+
+const PRIORITY_OPTIONS = [
+  { value: '', label: 'Not Set' },
+  { value: 'high', label: 'High' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'low', label: 'Low' },
+] as const;
+
+// ── Synced metadata fields (Status / Priority / Deadline / Notes) ──────────
+
+const TodoMeta = ({ docRecord }: { docRecord: DocRecord }) => {
+  const properties = useLiveData(docRecord.properties$) as Record<
+    string,
+    string | undefined
+  >;
+  const status = properties['custom:todo_status'] ?? '';
+  const priority = properties['custom:todo_priority'] ?? '';
+  const deadline = properties['custom:todo_deadline'] ?? '';
+  const notes = properties['custom:todo_notes'] ?? '';
+
+  return (
+    <div className={styles.metaSection}>
+      <div className={styles.metaRow}>
+        <div className={styles.metaField}>
+          <span className={styles.metaLabel}>Status</span>
+          <select
+            className={styles.metaStatusSelect}
+            data-status={status}
+            value={status}
+            onChange={e =>
+              docRecord.setCustomProperty('todo_status', e.target.value)
+            }
+          >
+            {STATUS_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className={styles.metaField}>
+          <span className={styles.metaLabel}>Priority</span>
+          <select
+            className={styles.metaPrioritySelect}
+            data-priority={priority}
+            value={priority}
+            onChange={e =>
+              docRecord.setCustomProperty('todo_priority', e.target.value)
+            }
+          >
+            {PRIORITY_OPTIONS.map(opt => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className={styles.metaRow}>
+        <div className={styles.metaField}>
+          <span className={styles.metaLabel}>Deadline</span>
+          <input
+            type="date"
+            className={styles.metaDateInput}
+            value={deadline}
+            onChange={e =>
+              docRecord.setCustomProperty('todo_deadline', e.target.value)
+            }
+          />
+        </div>
+        <div className={styles.metaField}>
+          <span className={styles.metaLabel}>Notes</span>
+          <input
+            type="text"
+            className={styles.metaNotesInput}
+            value={notes}
+            placeholder="Add notes…"
+            onChange={e =>
+              docRecord.setCustomProperty('todo_notes', e.target.value)
+            }
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /**
  * "Today's Tasks" section shown on every journal doc, between the date
  * title and the Info table. It surfaces the day's `Todo · <date>` doc
@@ -75,6 +170,14 @@ export const JournalTodayTasks = ({ page }: { page: Store }) => {
     const title = record?.meta$.value.title || '';
     return title.startsWith('Todo ·') || title.startsWith('Meeting ·');
   }, [docRecords, page.id]);
+
+  // DocRecord for the todo doc — used for metadata fields
+  const todoDocRecord = useLiveData(
+    useMemo(
+      () => docsService.list.doc$(todoDocId ?? ''),
+      [docsService, todoDocId]
+    )
+  );
 
   const [todoStore, setTodoStore] = useState<Store | null>(null);
   useEffect(() => {
@@ -205,6 +308,7 @@ export const JournalTodayTasks = ({ page }: { page: Store }) => {
               data-testid="journal-today-tasks-input"
             />
           </div>
+          {todoDocRecord && <TodoMeta docRecord={todoDocRecord} />}
         </div>
       </div>
     </div>
