@@ -7,7 +7,7 @@ import {
   ArrowRightSmallIcon,
   ExpandCloseIcon,
 } from '@blocksuite/icons/rc';
-import { useLiveData, useService } from '@toeverything/infra';
+import { LiveData, useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
 import React, {
@@ -1077,6 +1077,7 @@ const EditableDocContent = ({
 // ── Shared: editable meeting name input ──────────────────────────────────────
 
 const EditableMeetingName = ({ docRecord }: { docRecord: DocRecord }) => {
+  const docsService = useService(DocsService);
   const meta = useLiveData(docRecord.meta$);
   const displayName = (meta.title ?? '').replace(/^Meeting · /, '');
   const [name, setName] = useState(displayName);
@@ -1089,9 +1090,15 @@ const EditableMeetingName = ({ docRecord }: { docRecord: DocRecord }) => {
   const commitRename = useCallback(
     (val: string) => {
       const trimmed = val.trim();
-      if (trimmed) docRecord.setMeta({ title: `Meeting · ${trimmed}` });
+      if (!trimmed) return;
+      const newTitle = `Meeting · ${trimmed}`;
+      // Let changeDocTitle handle both the BlockSuite root block title (Y.Text)
+      // and the workspace metadata atomically.  Calling setMeta here first
+      // would trigger RootBlockModel's rootAdded listener to revert the
+      // metadata back to the block's old title before the block is updated.
+      docsService.changeDocTitle(docRecord.id, newTitle).catch(console.error);
     },
-    [docRecord]
+    [docRecord, docsService]
   );
 
   return (
@@ -1219,23 +1226,32 @@ const EditableTodoContent = ({ docRecord }: { docRecord: DocRecord }) => {
 const RightPageContent = ({ dateKey }: { dateKey: string }) => {
   const journalService = useService(JournalService);
   const docsService = useService(DocsService);
-  const allDocs = useLiveData(
-    useMemo(
-      () => journalService.journalsByDate$(dateKey),
-      [dateKey, journalService]
-    )
+  const docsLiveData$ = useMemo(
+    () => journalService.journalsByDate$(dateKey),
+    [dateKey, journalService]
   );
 
-  const { todoDocs, meetingDocs } = useMemo(() => {
-    const todoDocs: DocRecord[] = [];
-    const meetingDocs: DocRecord[] = [];
-    for (const doc of allDocs) {
-      const title = doc.meta$.value.title || '';
-      if (title.startsWith('Todo ·')) todoDocs.push(doc);
-      else if (title.startsWith('Meeting ·')) meetingDocs.push(doc);
-    }
-    return { todoDocs, meetingDocs };
-  }, [allDocs]);
+  // Subscribe to both the journal-date membership list AND each doc's meta$
+  // title so that renaming a meeting/todo doc is immediately reflected here.
+  const docsTitleLiveData$ = useMemo(
+    () =>
+      LiveData.computed(get => {
+        const docs = get(docsLiveData$);
+        const todoDocs: DocRecord[] = [];
+        const meetingDocs: DocRecord[] = [];
+        for (const doc of docs) {
+          const title = get(doc.meta$)?.title ?? '';
+          if (title.startsWith('Todo ·')) todoDocs.push(doc);
+          else if (title.startsWith('Meeting ·')) meetingDocs.push(doc);
+        }
+        return { todoDocs, meetingDocs };
+      }),
+    [docsLiveData$]
+  );
+  const { todoDocs, meetingDocs } = useLiveData(docsTitleLiveData$) ?? {
+    todoDocs: [],
+    meetingDocs: [],
+  };
 
   const handleCreateTodo = useCallback(() => {
     const title = `Todo · ${dayjs(dateKey).format('MMM D, YYYY')}`;
