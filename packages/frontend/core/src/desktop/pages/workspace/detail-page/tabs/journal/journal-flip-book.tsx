@@ -20,17 +20,262 @@ import React, {
 
 import * as styles from './journal.css';
 
-// ── Sketch colors ──────────────────────────────────────────────────────────
+// ── Sketch palette & tools ─────────────────────────────────────────────────
 
+type SketchPattern = 'pen' | 'pencil' | 'marker' | 'fountain';
+
+/** 16 colours in a 2×8 grid inside the toolbar. */
 const SKETCH_COLORS = [
-  { value: '#1a1615', label: 'Ink' },
-  { value: '#b33030', label: 'Red' },
-  { value: '#2563a8', label: 'Blue' },
-  { value: '#2a7a3b', label: 'Green' },
-  { value: '#7b4fa6', label: 'Purple' },
+  '#111111',
+  '#5c5c5c',
+  '#795548',
+  '#c4a46b',
+  '#c62828',
+  '#e64a19',
+  '#f9a825',
+  '#558b2f',
+  '#1a237e',
+  '#1565c0',
+  '#00838f',
+  '#2e7d32',
+  '#6a1b9a',
+  '#e91e63',
+  '#29b6f6',
+  '#fffef5',
 ];
 
-// ── Inline SVG pen icon ─────────────────────────────────────────────────────
+const PEN_SIZES = [1, 2, 4, 7] as const;
+const ERASER_SIZES = [8, 16, 28] as const;
+const PEN_DOT_VISUAL = [3, 5, 7, 10] as const;
+const ERASER_DOT_VISUAL = [5, 7, 10] as const;
+
+const PATTERNS: { key: SketchPattern; label: string; icon: React.ReactNode }[] =
+  [
+    {
+      key: 'pen',
+      label: '鋼筆',
+      icon: (
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <line
+            x1="2"
+            y1="10"
+            x2="10"
+            y2="2"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      ),
+    },
+    {
+      key: 'pencil',
+      label: '鉛筆',
+      icon: (
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <line
+            x1="1.5"
+            y1="9.5"
+            x2="9.5"
+            y2="1.5"
+            stroke="currentColor"
+            strokeWidth="0.8"
+            strokeLinecap="round"
+            opacity="0.45"
+          />
+          <line
+            x1="2.5"
+            y1="10"
+            x2="10.5"
+            y2="2"
+            stroke="currentColor"
+            strokeWidth="0.7"
+            strokeLinecap="round"
+            opacity="0.35"
+          />
+          <line
+            x1="1"
+            y1="8.5"
+            x2="9"
+            y2="0.5"
+            stroke="currentColor"
+            strokeWidth="0.6"
+            strokeLinecap="round"
+            opacity="0.3"
+          />
+        </svg>
+      ),
+    },
+    {
+      key: 'marker',
+      label: '麥克筆',
+      icon: (
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <line
+            x1="2"
+            y1="9"
+            x2="10"
+            y2="3"
+            stroke="currentColor"
+            strokeWidth="4"
+            strokeLinecap="square"
+            opacity="0.45"
+          />
+        </svg>
+      ),
+    },
+    {
+      key: 'fountain',
+      label: '毛筆',
+      icon: (
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path
+            d="M2 10 C4 8 6.5 5 10 2"
+            stroke="currentColor"
+            strokeWidth="3"
+            strokeLinecap="round"
+            opacity="0.8"
+          />
+          <path
+            d="M2 10 C4 8 6.5 5 10 2"
+            stroke="currentColor"
+            strokeWidth="0.5"
+            strokeLinecap="round"
+          />
+        </svg>
+      ),
+    },
+  ];
+
+// ── Brush helpers ───────────────────────────────────────────────────────────
+
+type Pt = { x: number; y: number };
+
+function applyPen(
+  ctx: CanvasRenderingContext2D,
+  color: string,
+  size: number,
+  pt: Pt,
+  from?: Pt
+) {
+  ctx.globalAlpha = 1;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  if (from) {
+    ctx.lineWidth = size;
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(pt.x, pt.y);
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, size / 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function applyPencil(
+  ctx: CanvasRenderingContext2D,
+  color: string,
+  size: number,
+  pt: Pt,
+  from?: Pt
+) {
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  const passes = Math.max(3, Math.round(size * 1.5));
+  for (let i = 0; i < passes; i++) {
+    ctx.globalAlpha = 0.05 + Math.random() * 0.12;
+    ctx.lineWidth = Math.max(0.5, size * 0.35);
+    const scatter = size * 0.75;
+    if (from) {
+      ctx.beginPath();
+      ctx.moveTo(
+        from.x + (Math.random() - 0.5) * scatter,
+        from.y + (Math.random() - 0.5) * scatter
+      );
+      ctx.lineTo(
+        pt.x + (Math.random() - 0.5) * scatter,
+        pt.y + (Math.random() - 0.5) * scatter
+      );
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(
+        pt.x + (Math.random() - 0.5) * size * 0.5,
+        pt.y + (Math.random() - 0.5) * size * 0.5,
+        size * 0.25,
+        0,
+        Math.PI * 2
+      );
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+function applyMarker(
+  ctx: CanvasRenderingContext2D,
+  color: string,
+  size: number,
+  pt: Pt,
+  from?: Pt
+) {
+  ctx.globalAlpha = 0.35;
+  const w = size * 4;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  if (from) {
+    ctx.lineWidth = w;
+    ctx.lineCap = 'square';
+    ctx.lineJoin = 'bevel';
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(pt.x, pt.y);
+    ctx.stroke();
+  } else {
+    ctx.fillRect(pt.x - w / 2, pt.y - w * 0.25, w, w * 0.5);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function applyFountain(
+  ctx: CanvasRenderingContext2D,
+  color: string,
+  size: number,
+  pt: Pt,
+  from?: Pt
+) {
+  let width = size * 1.5;
+  if (from) {
+    const dx = pt.x - from.x;
+    const dy = pt.y - from.y;
+    const speed = Math.sqrt(dx * dx + dy * dy);
+    // slow strokes → wide; fast strokes → thin
+    width = Math.max(size * 0.5, (size * 3) / (1 + speed * 0.15));
+  }
+  ctx.globalAlpha = 1;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  if (from) {
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(pt.x, pt.y);
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, width / 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// ── Inline SVG icons ───────────────────────────────────────────────────────
 
 const PenSketchIcon = () => (
   <svg
@@ -47,6 +292,17 @@ const PenSketchIcon = () => (
       strokeLinecap="round"
       strokeLinejoin="round"
     />
+  </svg>
+);
+
+const GripIcon = () => (
+  <svg width="8" height="10" viewBox="0 0 8 10" fill="currentColor">
+    <circle cx="2" cy="2" r="1" />
+    <circle cx="6" cy="2" r="1" />
+    <circle cx="2" cy="5" r="1" />
+    <circle cx="6" cy="5" r="1" />
+    <circle cx="2" cy="8" r="1" />
+    <circle cx="6" cy="8" r="1" />
   </svg>
 );
 
@@ -67,13 +323,20 @@ const PageSketchCanvas = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawingRef = useRef(false);
-  const lastPtRef = useRef<{ x: number; y: number } | null>(null);
-  const colorRef = useRef(SKETCH_COLORS[0].value);
+  const lastPtRef = useRef<Pt | null>(null);
+  const colorRef = useRef(SKETCH_COLORS[0]);
   const eraserRef = useRef(false);
+  const penSizeRef = useRef<number>(2);
+  const eraserSizeRef = useRef<number>(16);
+  const patternRef = useRef<SketchPattern>('pen');
 
   const [isActive, setIsActive] = useState(false);
-  const [color, setColor] = useState(SKETCH_COLORS[0].value);
+  const [color, setColor] = useState(SKETCH_COLORS[0]);
   const [isEraser, setIsEraser] = useState(false);
+  const [penSize, setPenSize] = useState<(typeof PEN_SIZES)[number]>(2);
+  const [eraserSize, setEraserSize] =
+    useState<(typeof ERASER_SIZES)[number]>(16);
+  const [pattern, setPattern] = useState<SketchPattern>('pen');
 
   useEffect(() => {
     colorRef.current = color;
@@ -81,6 +344,29 @@ const PageSketchCanvas = ({
   useEffect(() => {
     eraserRef.current = isEraser;
   }, [isEraser]);
+  useEffect(() => {
+    penSizeRef.current = penSize;
+  }, [penSize]);
+  useEffect(() => {
+    eraserSizeRef.current = eraserSize;
+  }, [eraserSize]);
+  useEffect(() => {
+    patternRef.current = pattern;
+  }, [pattern]);
+
+  // ── Toolbar drag / collapse ──────────────────────────────────────────────
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [toolbarPos, setToolbarPos] = useState<{ x: number; y: number } | null>(
+    null
+  );
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const isDraggingRef = useRef(false);
+  const dragOriginRef = useRef<{
+    mouseX: number;
+    mouseY: number;
+    left: number;
+    top: number;
+  } | null>(null);
 
   const storageKey = `journal-sketch-${side}-${dateKey}`;
 
@@ -151,6 +437,78 @@ const PageSketchCanvas = ({
     return () => document.removeEventListener('keydown', onKey);
   }, [isActive]);
 
+  // Toolbar drag — document-level move/up so dragging outside the page still works.
+  // All mutable state is read via refs so deps are empty (stable across renders).
+  useEffect(() => {
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      if (!isDraggingRef.current || !dragOriginRef.current) return;
+      const toolbar = toolbarRef.current;
+      const parent = toolbar?.parentElement;
+      if (!toolbar || !parent) return;
+      const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? 0) : e.clientX;
+      const clientY = 'touches' in e ? (e.touches[0]?.clientY ?? 0) : e.clientY;
+      const dx = clientX - dragOriginRef.current.mouseX;
+      const dy = clientY - dragOriginRef.current.mouseY;
+      const newLeft = Math.max(
+        0,
+        Math.min(
+          parent.offsetWidth - toolbar.offsetWidth,
+          dragOriginRef.current.left + dx
+        )
+      );
+      const newTop = Math.max(
+        0,
+        Math.min(
+          parent.offsetHeight - toolbar.offsetHeight,
+          dragOriginRef.current.top + dy
+        )
+      );
+      setToolbarPos({ x: newLeft, y: newTop });
+    };
+    const onUp = () => {
+      isDraggingRef.current = false;
+    };
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+    return () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    };
+  }, []);
+
+  const startDrag = (clientX: number, clientY: number) => {
+    const toolbar = toolbarRef.current;
+    const parent = toolbar?.parentElement;
+    if (!toolbar || !parent) return;
+    const parentRect = parent.getBoundingClientRect();
+    const toolbarRect = toolbar.getBoundingClientRect();
+    isDraggingRef.current = true;
+    dragOriginRef.current = {
+      mouseX: clientX,
+      mouseY: clientY,
+      left: toolbarRect.left - parentRect.left,
+      top: toolbarRect.top - parentRect.top,
+    };
+  };
+
+  const onGripMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    startDrag(e.clientX, e.clientY);
+  };
+
+  const onGripTouchStart = (e: React.TouchEvent) => {
+    e.stopPropagation();
+    if (!e.touches.length) return;
+    startDrag(e.touches[0].clientX, e.touches[0].clientY);
+  };
+
   const getPoint = (e: React.MouseEvent | React.TouchEvent) => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
@@ -176,34 +534,50 @@ const PageSketchCanvas = ({
     if (canvas) localStorage.setItem(storageKey, canvas.toDataURL());
   }, [storageKey]);
 
-  const applyStroke = (
-    pt: { x: number; y: number },
-    from?: { x: number; y: number }
-  ) => {
+  const applyStroke = (pt: Pt, from?: Pt) => {
     const ctx = canvasRef.current?.getContext('2d');
     if (!ctx) return;
-    const sz = eraserRef.current ? 12 : 2;
+
     if (eraserRef.current) {
       ctx.globalCompositeOperation = 'destination-out';
-    } else {
-      ctx.globalCompositeOperation = 'source-over';
-    }
-    if (from) {
+      ctx.globalAlpha = 1;
+      const sz = eraserSizeRef.current;
       ctx.lineWidth = sz;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      ctx.strokeStyle = eraserRef.current ? 'rgba(0,0,0,1)' : colorRef.current;
-      ctx.beginPath();
-      ctx.moveTo(from.x, from.y);
-      ctx.lineTo(pt.x, pt.y);
-      ctx.stroke();
-    } else {
-      ctx.beginPath();
-      ctx.arc(pt.x, pt.y, sz / 2, 0, Math.PI * 2);
-      ctx.fillStyle = eraserRef.current ? 'rgba(0,0,0,1)' : colorRef.current;
-      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,0,0,1)';
+      ctx.fillStyle = 'rgba(0,0,0,1)';
+      if (from) {
+        ctx.beginPath();
+        ctx.moveTo(from.x, from.y);
+        ctx.lineTo(pt.x, pt.y);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, sz / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      return;
     }
+
     ctx.globalCompositeOperation = 'source-over';
+    const col = colorRef.current;
+    const sz = penSizeRef.current;
+    switch (patternRef.current) {
+      case 'pen':
+        applyPen(ctx, col, sz, pt, from);
+        break;
+      case 'pencil':
+        applyPencil(ctx, col, sz, pt, from);
+        break;
+      case 'marker':
+        applyMarker(ctx, col, sz, pt, from);
+        break;
+      case 'fountain':
+        applyFountain(ctx, col, sz, pt, from);
+        break;
+    }
   };
 
   const onDown = (e: React.MouseEvent | React.TouchEvent) => {
@@ -275,52 +649,168 @@ const PageSketchCanvas = ({
         <PenSketchIcon />
       </button>
 
-      {/* Mini colour toolbar — floats at the bottom of the page */}
+      {/* Multi-row toolbar — draggable, collapsible, floats above the canvas */}
       {isActive && (
-        <div className={styles.flipBookPageSketchBar}>
-          {SKETCH_COLORS.map(c => (
+        <div
+          ref={toolbarRef}
+          className={styles.flipBookPageSketchBar}
+          style={
+            toolbarPos
+              ? {
+                  left: toolbarPos.x,
+                  top: toolbarPos.y,
+                  bottom: 'auto',
+                  transform: 'none',
+                }
+              : undefined
+          }
+        >
+          {/* Drag grip + collapse toggle */}
+          <div
+            className={styles.flipBookPageSketchGrip}
+            onMouseDown={onGripMouseDown}
+            onTouchStart={onGripTouchStart}
+          >
+            <GripIcon />
             <button
-              key={c.value}
-              className={styles.flipBookPageSketchSwatch}
-              style={{ background: c.value }}
-              data-active={!isEraser && color === c.value}
+              className={styles.flipBookPageSketchCollapseBtn}
               onClick={e => {
                 e.stopPropagation();
-                setColor(c.value);
-                colorRef.current = c.value;
-                setIsEraser(false);
-                eraserRef.current = false;
+                setIsCollapsed(v => !v);
               }}
               onMouseDown={e => e.stopPropagation()}
-              title={c.label}
-            />
-          ))}
-          <div className={styles.flipBookPageSketchDivider} />
-          <button
-            className={styles.flipBookPageSketchBtn}
-            data-active={isEraser}
-            onClick={e => {
-              e.stopPropagation();
-              const next = !isEraser;
-              setIsEraser(next);
-              eraserRef.current = next;
-            }}
-            onMouseDown={e => e.stopPropagation()}
-            title="Eraser"
-          >
-            E
-          </button>
-          <button
-            className={styles.flipBookPageSketchBtn}
-            onClick={e => {
-              e.stopPropagation();
-              clearCanvas();
-            }}
-            onMouseDown={e => e.stopPropagation()}
-            title="Clear"
-          >
-            ✕
-          </button>
+              title={isCollapsed ? '展開' : '收起'}
+            >
+              {isCollapsed ? '+' : '−'}
+            </button>
+          </div>
+
+          {!isCollapsed && (
+            <>
+              {/* Row 1: pattern selectors | eraser toggle | clear */}
+              <div className={styles.flipBookPageSketchRow}>
+                <div className={styles.flipBookPageSketchGroup}>
+                  {PATTERNS.map(p => (
+                    <button
+                      key={p.key}
+                      className={styles.flipBookPageSketchPatternBtn}
+                      data-active={!isEraser && pattern === p.key}
+                      title={p.label}
+                      onClick={e => {
+                        e.stopPropagation();
+                        setPattern(p.key);
+                        patternRef.current = p.key;
+                        setIsEraser(false);
+                        eraserRef.current = false;
+                      }}
+                      onMouseDown={e => e.stopPropagation()}
+                    >
+                      {p.icon}
+                    </button>
+                  ))}
+                </div>
+                <div className={styles.flipBookPageSketchDivider} />
+                <button
+                  className={styles.flipBookPageSketchBtn}
+                  data-active={isEraser}
+                  onClick={e => {
+                    e.stopPropagation();
+                    const next = !isEraser;
+                    setIsEraser(next);
+                    eraserRef.current = next;
+                  }}
+                  onMouseDown={e => e.stopPropagation()}
+                  title="橡皮擦"
+                >
+                  E
+                </button>
+                <div className={styles.flipBookPageSketchDivider} />
+                <button
+                  className={styles.flipBookPageSketchBtn}
+                  onClick={e => {
+                    e.stopPropagation();
+                    clearCanvas();
+                  }}
+                  onMouseDown={e => e.stopPropagation()}
+                  title="清除全部"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Row 2: size presets — pen sizes or eraser sizes depending on mode */}
+              <div className={styles.flipBookPageSketchRow}>
+                <div className={styles.flipBookPageSketchGroup}>
+                  {isEraser
+                    ? ERASER_SIZES.map((s, i) => (
+                        <button
+                          key={s}
+                          className={styles.flipBookPageSketchSizeBtn}
+                          data-active={eraserSize === s}
+                          title={`橡皮擦 ${s}px`}
+                          onClick={e => {
+                            e.stopPropagation();
+                            setEraserSize(s);
+                            eraserSizeRef.current = s;
+                          }}
+                          onMouseDown={e => e.stopPropagation()}
+                        >
+                          <span
+                            className={styles.flipBookPageSketchSizeBlock}
+                            style={{
+                              width: ERASER_DOT_VISUAL[i],
+                              height: ERASER_DOT_VISUAL[i],
+                            }}
+                          />
+                        </button>
+                      ))
+                    : PEN_SIZES.map((s, i) => (
+                        <button
+                          key={s}
+                          className={styles.flipBookPageSketchSizeBtn}
+                          data-active={penSize === s}
+                          title={`筆粗 ${s}px`}
+                          onClick={e => {
+                            e.stopPropagation();
+                            setPenSize(s);
+                            penSizeRef.current = s;
+                          }}
+                          onMouseDown={e => e.stopPropagation()}
+                        >
+                          <span
+                            className={styles.flipBookPageSketchSizeDot}
+                            style={{
+                              width: PEN_DOT_VISUAL[i],
+                              height: PEN_DOT_VISUAL[i],
+                            }}
+                          />
+                        </button>
+                      ))}
+                </div>
+              </div>
+
+              {/* Row 3–4: 16-colour grid (2 rows × 8 columns) */}
+              <div className={styles.flipBookPageSketchColorGrid}>
+                {SKETCH_COLORS.map(c => (
+                  <button
+                    key={c}
+                    className={styles.flipBookPageSketchSwatch}
+                    style={{ background: c }}
+                    data-active={!isEraser && color === c}
+                    onClick={e => {
+                      e.stopPropagation();
+                      setColor(c);
+                      colorRef.current = c;
+                      setIsEraser(false);
+                      eraserRef.current = false;
+                    }}
+                    onMouseDown={e => e.stopPropagation()}
+                    title={c}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
     </>

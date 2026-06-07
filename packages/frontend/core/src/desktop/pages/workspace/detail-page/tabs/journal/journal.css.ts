@@ -1393,7 +1393,7 @@ export const flipBookPenBtn = style({
   },
 });
 
-/** Mini floating toolbar at the bottom of the page while drawing. */
+/** Multi-row floating toolbar at the bottom of the page while drawing. */
 export const flipBookPageSketchBar = style({
   position: 'absolute',
   bottom: 6,
@@ -1401,29 +1401,51 @@ export const flipBookPageSketchBar = style({
   transform: 'translateX(-50%)',
   zIndex: 3,
   display: 'flex',
-  alignItems: 'center',
-  gap: 3,
-  padding: '3px 7px',
-  borderRadius: 20,
-  background: 'rgba(250, 247, 239, 0.92)',
+  flexDirection: 'column',
+  gap: 4,
+  padding: '5px 7px',
+  borderRadius: 8,
+  background: 'rgba(250, 247, 239, 0.96)',
   border: '1px solid rgba(0,0,0,0.1)',
-  boxShadow: '0 1px 5px rgba(0,0,0,0.14)',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.16)',
   backdropFilter: 'blur(4px)',
-  whiteSpace: 'nowrap',
+  maxWidth: 'calc(100% - 12px)',
+});
+
+/** A single horizontal row inside the toolbar. */
+export const flipBookPageSketchRow = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 2,
+});
+
+/** A tightly-grouped cluster of buttons within a row. */
+export const flipBookPageSketchGroup = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 1,
+});
+
+/** 2-row × 8-column colour grid. */
+export const flipBookPageSketchColorGrid = style({
+  display: 'grid',
+  gridTemplateColumns: 'repeat(8, 11px)',
+  gap: 2,
 });
 
 export const flipBookPageSketchSwatch = style({
   flexShrink: 0,
-  width: 13,
-  height: 13,
+  width: 11,
+  height: 11,
   borderRadius: '50%',
-  border: '2px solid transparent',
+  border: '1px solid rgba(0,0,0,0.15)',
   cursor: 'pointer',
   padding: 0,
   selectors: {
     '&[data-active="true"]': {
-      borderColor: '#2c2820',
-      boxShadow: '0 0 0 1px rgba(255,255,255,0.9) inset',
+      outline: '1.5px solid #2c2820',
+      outlineOffset: 1,
     },
   },
 });
@@ -1436,12 +1458,114 @@ export const flipBookPageSketchDivider = style({
   margin: '0 1px',
 });
 
+/** Pattern-type selector button (pen / pencil / marker / fountain). */
+export const flipBookPageSketchPatternBtn = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 18,
+  height: 18,
+  borderRadius: 3,
+  border: 'none',
+  background: 'transparent',
+  color: flipBookTextMuted,
+  cursor: 'pointer',
+  padding: 0,
+  selectors: {
+    '&:hover': {
+      background: 'rgba(0,0,0,0.09)',
+      color: flipBookTextPrimary,
+    },
+    '&[data-active="true"]': {
+      background: 'rgba(0,0,0,0.13)',
+      color: flipBookTextPrimary,
+    },
+  },
+});
+
+/** Size-preset button — contains a dot or block. */
+export const flipBookPageSketchSizeBtn = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 18,
+  height: 18,
+  borderRadius: 3,
+  border: 'none',
+  background: 'transparent',
+  color: flipBookTextMuted,
+  cursor: 'pointer',
+  padding: 0,
+  selectors: {
+    '&:hover': { background: 'rgba(0,0,0,0.09)' },
+    '&[data-active="true"]': {
+      background: 'rgba(0,0,0,0.13)',
+      color: flipBookTextPrimary,
+    },
+  },
+});
+
+/** Circle dot inside a pen-size button. */
+export const flipBookPageSketchSizeDot = style({
+  display: 'block',
+  flexShrink: 0,
+  borderRadius: '50%',
+  background: 'currentColor',
+});
+
+/** Rounded-square inside an eraser-size button. */
+export const flipBookPageSketchSizeBlock = style({
+  display: 'block',
+  flexShrink: 0,
+  borderRadius: 2,
+  background: 'currentColor',
+  opacity: 0.55,
+});
+
+/** Drag grip row — sits at the top of the toolbar. */
+export const flipBookPageSketchGrip = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  cursor: 'grab',
+  padding: '0 1px',
+  userSelect: 'none',
+  color: 'rgba(0,0,0,0.3)',
+  selectors: {
+    '&:active': { cursor: 'grabbing' },
+  },
+});
+
+/** Collapse / expand button inside the grip row. */
+export const flipBookPageSketchCollapseBtn = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 14,
+  height: 14,
+  borderRadius: 2,
+  border: 'none',
+  background: 'transparent',
+  color: flipBookTextMuted,
+  fontSize: 12,
+  lineHeight: '1',
+  cursor: 'pointer',
+  padding: 0,
+  fontWeight: 400,
+  selectors: {
+    '&:hover': {
+      background: 'rgba(0,0,0,0.09)',
+      color: flipBookTextPrimary,
+    },
+  },
+});
+
 export const flipBookPageSketchBtn = style({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: 17,
-  height: 17,
+  width: 18,
+  height: 18,
   borderRadius: 3,
   border: 'none',
   background: 'transparent',
@@ -1451,7 +1575,7 @@ export const flipBookPageSketchBtn = style({
   padding: 0,
   selectors: {
     '&:hover': {
-      background: 'rgba(0,0,0,0.1)',
+      background: 'rgba(0,0,0,0.09)',
       color: flipBookTextPrimary,
     },
     '&[data-active="true"]': {
