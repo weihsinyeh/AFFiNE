@@ -746,14 +746,16 @@ const FullCalendarDayCell = ({
         return;
       }
       if (type === 'todo') {
+        const isOnAllTodos =
+          workbench.location$.value.pathname === '/all-todos';
         if (todoDoc) {
-          workbench.openDoc(todoDoc.id, { at: 'active' });
+          if (!isOnAllTodos) workbench.openDoc(todoDoc.id, { at: 'active' });
         } else {
           const newDoc = docsService.createDoc({
             title: `Todo · ${day.format('MMM D, YYYY')}`,
           });
           journalService.setJournalDate(newDoc.id, dateKey);
-          workbench.openDoc(newDoc.id, { at: 'active' });
+          if (!isOnAllTodos) workbench.openDoc(newDoc.id, { at: 'active' });
         }
         return;
       }

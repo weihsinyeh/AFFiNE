@@ -34,7 +34,7 @@ export class BroadcastChannelAwarenessStorage extends AwarenessStorageBase {
     id: this.options.id,
   });
   get channel() {
-    return this.connection.inner;
+    return this.connection.maybeConnection;
   }
 
   constructor(
@@ -56,7 +56,7 @@ export class BroadcastChannelAwarenessStorage extends AwarenessStorageBase {
     if (subscribers) {
       subscribers.forEach(subscriber => subscriber.onUpdate(record, origin));
     }
-    this.channel.postMessage({
+    this.channel?.postMessage({
       type: 'awareness-update',
       docId: record.docId,
       bin: record.bin,
@@ -106,7 +106,7 @@ export class BroadcastChannelAwarenessStorage extends AwarenessStorageBase {
         onCollect()
           .then(awareness => {
             if (awareness) {
-              this.channel.postMessage({
+              this.channel?.postMessage({
                 type: 'awareness-collect-feedback',
                 docId: message.data.docId,
                 bin: awareness.bin,
@@ -130,8 +130,8 @@ export class BroadcastChannelAwarenessStorage extends AwarenessStorageBase {
       }
     };
 
-    this.channel.addEventListener('message', onChannelMessage);
-    this.channel.postMessage({
+    this.channel?.addEventListener('message', onChannelMessage);
+    this.channel?.postMessage({
       type: 'awareness-collect',
       docId: id,
       collectId: collectUniqueId,
@@ -146,7 +146,7 @@ export class BroadcastChannelAwarenessStorage extends AwarenessStorageBase {
 
     return () => {
       subscribers.delete(subscriber);
-      this.channel.removeEventListener('message', onChannelMessage);
+      this.channel?.removeEventListener('message', onChannelMessage);
     };
   }
 }
