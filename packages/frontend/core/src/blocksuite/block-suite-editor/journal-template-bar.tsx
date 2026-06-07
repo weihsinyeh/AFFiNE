@@ -11,6 +11,7 @@ import {
   DEFAULT_JOURNAL_TEMPLATES,
   JOURNAL_TEMPLATES_STORAGE_KEY,
   parseTemplateContent,
+  reorderJournalTemplates,
   type StoredJournalTemplate,
 } from './journal-templates';
 
@@ -46,10 +47,13 @@ export const JournalTemplateBar = ({ page }: { page: Store }) => {
         parseTemplateContent(template.content)
       );
       if (applied) {
+        // Group identical templates together and order them the same way the
+        // bar lists them — only after the user has actually added something.
+        reorderJournalTemplates(page, templates);
         notify.success({ title: `已加入${template.label}模板` });
       }
     },
-    [page]
+    [page, templates]
   );
 
   if (!dateStr || templates.length === 0) return null;

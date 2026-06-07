@@ -38,8 +38,6 @@ import { ServerFeature } from '@affine/graphql';
 import track from '@affine/track';
 import { DisposableGroup } from '@blocksuite/affine/global/disposable';
 import { RefNodeSlotsProvider } from '@blocksuite/affine/inlines/reference';
-import { focusBlockEnd } from '@blocksuite/affine/shared/commands';
-import { getLastNoteBlock } from '@blocksuite/affine/shared/utils';
 import {
   AiIcon,
   AiOutlineIcon,
@@ -216,26 +214,13 @@ const DetailPageImpl = memo(function DetailPageImpl() {
       const std = editorContainer.std;
       const disposable = new DisposableGroup();
 
-      // Check if journal and handle accordingly to set focus on input block.
+      // Journals can grow long as templates stack up. Start from the top so a
+      // returning user scrolls downward, instead of being focused into the
+      // last block at the very bottom.
       if (isJournal) {
         const rafId = requestAnimationFrame(() => {
-          try {
-            if (!editorContainer.isConnected) return;
-            const page = editorContainer.page;
-            const note = getLastNoteBlock(page);
-            const std = editorContainer.std;
-            if (note) {
-              const lastBlock = note.lastChild();
-              if (lastBlock) {
-                const focusBlock = std.view.getBlock(lastBlock.id) ?? undefined;
-                std.command.exec(focusBlockEnd, { focusBlock, force: true });
-                return;
-              }
-            }
-            std.command.exec(focusBlockEnd, { force: true });
-          } catch (error) {
-            console.error('Failed to focus journal body', error);
-          }
+          if (!editorContainer.isConnected) return;
+          scrollViewportRef.current?.scrollTo({ top: 0 });
         });
         disposable.add(() => cancelAnimationFrame(rafId));
       }

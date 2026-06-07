@@ -10,7 +10,7 @@
  *   anything else → paragraph (empty line = empty paragraph)
  */
 
-import type { Store } from '@blocksuite/affine/store';
+import type { BlockModel, Store } from '@blocksuite/affine/store';
 import { Text } from '@blocksuite/affine/store';
 
 export const JOURNAL_TEMPLATES_STORAGE_KEY = 'JournalTemplates';
@@ -91,6 +91,131 @@ export function appendBlocksToDoc(page: Store, blocks: TemplateBlock[]) {
       );
     }
   }
+  return true;
+}
+
+type BodyBlock = BlockModel & {
+  flavour: string;
+  text?: { toString(): string };
+};
+
+type TemplateSegment = {
+  /** Position of this template in the bar (lower = higher up after sorting). */
+  rank: number;
+  /** Original position among segments, used to keep duplicates stable. */
+  order: number;
+  blocks: BodyBlock[];
+};
+
+/**
+ * Re-group and sort the journal body so template sections are clustered by
+ * type and ordered the same way the template bar lists them (學習 → 旅遊 →
+ * 美食 → 心情 by default). Each instance keeps its own blocks — including
+ * whatever the user has typed into them — and same-type instances are placed
+ * next to each other. Free-form text written before the first template stays
+ * at the top. Dividers between sections are regenerated.
+ *
+ * Returns true only when blocks were actually moved, so callers can avoid
+ * churn (and notifications) when nothing changed.
+ */
+export function reorderJournalTemplates(
+  page: Store,
+  templates: StoredJournalTemplate[]
+): boolean {
+  const note = page.getBlocksByFlavour('affine:note')[0];
+  if (!note) return false;
+
+  const noteModel = note.model as unknown as {
+    id: string;
+    children?: BodyBlock[];
+  };
+  const children = noteModel.children ?? [];
+  if (children.length === 0) return false;
+
+  // Expected heading text for each template → its position in the bar.
+  const rankByHeading = new Map<string, number>();
+  templates.forEach((template, index) => {
+    const [first] = parseTemplateContent(template.content);
+    if (
+      first &&
+      first.flavour === 'affine:paragraph' &&
+      typeof first.type === 'string' &&
+      first.type.startsWith('h')
+    ) {
+      rankByHeading.set(first.text.trim(), index);
+    }
+  });
+  if (rankByHeading.size === 0) return false;
+
+  const headingRank = (block: BodyBlock): number | null => {
+    if (block.flavour !== 'affine:paragraph') return null;
+    // Heading type lives on `props.type` — the model has no direct `type`
+    // getter (unlike `text`), so reading `block.type` would be undefined.
+    const type = (block as unknown as { props?: { type?: string } }).props
+      ?.type;
+    if (typeof type !== 'string' || !type.startsWith('h')) {
+      return null;
+    }
+    const text = block.text?.toString().trim() ?? '';
+    return rankByHeading.has(text) ? (rankByHeading.get(text) as number) : null;
+  };
+
+  // Split the body into a preamble (anything before the first template) and
+  // one segment per template instance. Dividers are collected here so they can
+  // be dropped and regenerated; we don't re-read the (live) children later.
+  const preamble: BodyBlock[] = [];
+  const segments: TemplateSegment[] = [];
+  const dividers: BodyBlock[] = [];
+  let current: TemplateSegment | null = null;
+  for (const child of children) {
+    if (child.flavour === 'affine:divider') {
+      dividers.push(child);
+      continue;
+    }
+    const rank = headingRank(child);
+    if (rank !== null) {
+      current = { rank, order: segments.length, blocks: [child] };
+      segments.push(current);
+    } else if (current) {
+      current.blocks.push(child);
+    } else {
+      preamble.push(child);
+    }
+  }
+
+  // Grouping/sorting only matters with at least two template instances.
+  if (segments.length < 2) return false;
+
+  const sorted = [...segments].sort(
+    (a, b) => a.rank - b.rank || a.order - b.order
+  );
+  const alreadyOrdered = sorted.every((seg, i) => seg === segments[i]);
+  if (alreadyOrdered) return false;
+
+  // Drop existing dividers, relocate each segment in the new order (moving the
+  // real blocks preserves user input), then re-add dividers between sections.
+  for (const divider of dividers) {
+    page.deleteBlock(divider);
+  }
+  for (const seg of sorted) {
+    page.moveBlocks(seg.blocks, note.model, null);
+  }
+
+  const hasPreambleContent = preamble.some(
+    b => (b.text?.toString().trim() ?? '').length > 0
+  );
+  const dividerIndexes: number[] = [];
+  let index = preamble.length;
+  sorted.forEach((seg, i) => {
+    if (i === 0 ? hasPreambleContent : true) dividerIndexes.push(index);
+    index += seg.blocks.length;
+  });
+  // Insert from the highest index downward so earlier inserts don't shift the
+  // positions still to be filled.
+  for (let i = dividerIndexes.length - 1; i >= 0; i--) {
+    page.addBlock('affine:divider', {}, noteModel.id, dividerIndexes[i]);
+  }
+
   return true;
 }
 
