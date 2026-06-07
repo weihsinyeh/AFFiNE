@@ -2,12 +2,12 @@ import { notify } from '@affine/component';
 import { JournalService } from '@affine/core/modules/journal';
 import { GlobalStateService } from '@affine/core/modules/storage';
 import type { Store } from '@blocksuite/affine/store';
-import { Text } from '@blocksuite/affine/store';
 import { LiveData, useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useMemo } from 'react';
 
 import * as styles from './journal-template-bar.css';
 import {
+  appendBlocksToDoc,
   DEFAULT_JOURNAL_TEMPLATES,
   JOURNAL_TEMPLATES_STORAGE_KEY,
   parseTemplateContent,
@@ -41,43 +41,13 @@ export const JournalTemplateBar = ({ page }: { page: Store }) => {
 
   const applyTemplate = useCallback(
     (template: StoredJournalTemplate) => {
-      const note = page.getBlocksByFlavour('affine:note')[0];
-      if (!note) return;
-
-      // separate from existing content with a divider
-      const children =
-        (
-          note.model as unknown as {
-            children?: {
-              flavour?: string;
-              text?: { toString: () => string };
-            }[];
-          }
-        ).children ?? [];
-      const hasContent = children.some(child => {
-        const text = child.text?.toString().trim() ?? '';
-        return text.length > 0 || (child.flavour ?? '') === 'affine:divider';
-      });
-      if (hasContent) {
-        page.addBlock('affine:divider', {}, note.id);
+      const applied = appendBlocksToDoc(
+        page,
+        parseTemplateContent(template.content)
+      );
+      if (applied) {
+        notify.success({ title: `已加入${template.label}模板` });
       }
-
-      for (const block of parseTemplateContent(template.content)) {
-        if (block.flavour === 'affine:paragraph') {
-          page.addBlock(
-            'affine:paragraph',
-            { type: block.type ?? 'text', text: new Text(block.text) },
-            note.id
-          );
-        } else {
-          page.addBlock(
-            'affine:list',
-            { type: block.type, text: new Text(block.text) },
-            note.id
-          );
-        }
-      }
-      notify.success({ title: `已加入${template.label}模板` });
     },
     [page]
   );

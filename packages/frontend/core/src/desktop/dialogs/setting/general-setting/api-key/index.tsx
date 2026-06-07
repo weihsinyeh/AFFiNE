@@ -14,10 +14,19 @@ import {
 import {
   DEFAULT_DOC_AI_MODEL_ID,
   DEFAULT_JOURNAL_MODEL_ID,
+  DEFAULT_RECOMMEND_CITY,
+  DEFAULT_RECOMMEND_DISTRICT,
+  DEFAULT_RECOMMEND_MODEL_ID,
+  FOOD_RECOMMEND_CITY_KEY,
+  FOOD_RECOMMEND_DISTRICT_KEY,
   GEMINI_API_KEY_STORAGE_KEY,
   GEMINI_DOC_AI_MODEL_STORAGE_KEY,
   GEMINI_JOURNAL_MODEL_STORAGE_KEY,
   GEMINI_MODELS,
+  GEMINI_RECOMMEND_MODEL_STORAGE_KEY,
+  TAIWAN_CITIES,
+  TRAVEL_RECOMMEND_CITY_KEY,
+  TRAVEL_RECOMMEND_DISTRICT_KEY,
 } from '@affine/core/modules/ai-button/services/models';
 import { GlobalStateService } from '@affine/core/modules/storage';
 import { useService } from '@toeverything/infra';
@@ -75,6 +84,81 @@ const GeminiModelSetting = ({
           {current?.name ?? modelId}
         </MenuTrigger>
       </Menu>
+    </SettingRow>
+  );
+};
+
+const LocationSetting = ({
+  name,
+  desc,
+  cityKey,
+  districtKey,
+  testIdPrefix,
+}: {
+  name: string;
+  desc: string;
+  cityKey: string;
+  districtKey: string;
+  testIdPrefix: string;
+}) => {
+  const globalState = useService(GlobalStateService).globalState;
+  const [city, setCity] = useState(
+    () => globalState.get<string>(cityKey) ?? DEFAULT_RECOMMEND_CITY
+  );
+  const [district, setDistrict] = useState(
+    () => globalState.get<string>(districtKey) ?? DEFAULT_RECOMMEND_DISTRICT
+  );
+
+  const handleCitySelect = useCallback(
+    (value: string) => {
+      globalState.set(cityKey, value);
+      setCity(value);
+    },
+    [globalState, cityKey]
+  );
+
+  const handleDistrictChange = useCallback(
+    (value: string) => {
+      setDistrict(value);
+      globalState.set(districtKey, value.trim() || undefined);
+    },
+    [globalState, districtKey]
+  );
+
+  return (
+    <SettingRow name={name} desc={desc} data-testid={`${testIdPrefix}-row`}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <Menu
+          items={TAIWAN_CITIES.map(item => (
+            <MenuItem
+              key={item}
+              selected={item === city}
+              onSelect={() => handleCitySelect(item)}
+              data-testid={`${testIdPrefix}-city-${item}`}
+            >
+              {item}
+            </MenuItem>
+          ))}
+          contentOptions={{
+            align: 'end',
+            style: { maxHeight: 360, overflowY: 'auto' },
+          }}
+        >
+          <MenuTrigger
+            style={{ width: 110 }}
+            data-testid={`${testIdPrefix}-city-trigger`}
+          >
+            {city}
+          </MenuTrigger>
+        </Menu>
+        <Input
+          value={district}
+          onChange={handleDistrictChange}
+          placeholder="區域，如：大安區"
+          style={{ width: 120 }}
+          data-testid={`${testIdPrefix}-district-input`}
+        />
+      </div>
     </SettingRow>
   );
 };
@@ -146,6 +230,27 @@ export const ApiKeySettings = () => {
           storageKey={GEMINI_DOC_AI_MODEL_STORAGE_KEY}
           defaultModelId={DEFAULT_DOC_AI_MODEL_ID}
           testIdPrefix="doc-ai-model"
+        />
+        <GeminiModelSetting
+          name="AI智慧推薦使用模型"
+          desc="日記「AI智慧推薦」（隨機推薦旅遊行程與美食）會使用這個 Gemini 模型。"
+          storageKey={GEMINI_RECOMMEND_MODEL_STORAGE_KEY}
+          defaultModelId={DEFAULT_RECOMMEND_MODEL_ID}
+          testIdPrefix="recommend-model"
+        />
+        <LocationSetting
+          name="旅遊推薦地區"
+          desc="AI智慧推薦旅遊行程時鎖定的縣市與區域。"
+          cityKey={TRAVEL_RECOMMEND_CITY_KEY}
+          districtKey={TRAVEL_RECOMMEND_DISTRICT_KEY}
+          testIdPrefix="travel-location"
+        />
+        <LocationSetting
+          name="美食推薦地區"
+          desc="AI智慧推薦美食時鎖定的縣市與區域。"
+          cityKey={FOOD_RECOMMEND_CITY_KEY}
+          districtKey={FOOD_RECOMMEND_DISTRICT_KEY}
+          testIdPrefix="food-location"
         />
       </SettingWrapper>
     </>

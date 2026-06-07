@@ -29,6 +29,47 @@ export const GEMINI_DOC_AI_MODEL_STORAGE_KEY = 'GeminiDocAiModelId';
 
 export const DEFAULT_DOC_AI_MODEL_ID = 'gemini-2.5-flash';
 
+/**
+ * "AI智慧推薦" (random travel/food diary recommendations on empty
+ * journals): model + preferred locations, configurable in
+ * Settings -> General -> API Key.
+ */
+export const GEMINI_RECOMMEND_MODEL_STORAGE_KEY = 'GeminiRecommendModelId';
+
+export const DEFAULT_RECOMMEND_MODEL_ID = 'gemini-2.5-flash';
+
+export const TRAVEL_RECOMMEND_CITY_KEY = 'AIRecommendTravelCity';
+export const TRAVEL_RECOMMEND_DISTRICT_KEY = 'AIRecommendTravelDistrict';
+export const FOOD_RECOMMEND_CITY_KEY = 'AIRecommendFoodCity';
+export const FOOD_RECOMMEND_DISTRICT_KEY = 'AIRecommendFoodDistrict';
+export const DEFAULT_RECOMMEND_CITY = '台北市';
+export const DEFAULT_RECOMMEND_DISTRICT = '大安區';
+
+export const TAIWAN_CITIES = [
+  '台北市',
+  '新北市',
+  '基隆市',
+  '桃園市',
+  '新竹市',
+  '新竹縣',
+  '苗栗縣',
+  '台中市',
+  '彰化縣',
+  '南投縣',
+  '雲林縣',
+  '嘉義市',
+  '嘉義縣',
+  '台南市',
+  '高雄市',
+  '屏東縣',
+  '宜蘭縣',
+  '花蓮縣',
+  '台東縣',
+  '澎湖縣',
+  '金門縣',
+  '連江縣',
+];
+
 export interface AIModel {
   name: string;
   id: string;

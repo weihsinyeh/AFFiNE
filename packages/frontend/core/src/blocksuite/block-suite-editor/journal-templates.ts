@@ -10,6 +10,9 @@
  *   anything else → paragraph (empty line = empty paragraph)
  */
 
+import type { Store } from '@blocksuite/affine/store';
+import { Text } from '@blocksuite/affine/store';
+
 export const JOURNAL_TEMPLATES_STORAGE_KEY = 'JournalTemplates';
 
 export type StoredJournalTemplate = {
@@ -49,6 +52,46 @@ export function parseTemplateContent(content: string): TemplateBlock[] {
       }
       return { flavour: 'affine:paragraph', text: line };
     });
+}
+
+/**
+ * Append parsed template blocks to the end of the doc's first note,
+ * inserting a divider first when the doc already has content.
+ */
+export function appendBlocksToDoc(page: Store, blocks: TemplateBlock[]) {
+  const note = page.getBlocksByFlavour('affine:note')[0];
+  if (!note) return false;
+
+  const children =
+    (
+      note.model as unknown as {
+        children?: { flavour?: string; text?: { toString: () => string } }[];
+      }
+    ).children ?? [];
+  const hasContent = children.some(child => {
+    const text = child.text?.toString().trim() ?? '';
+    return text.length > 0 || (child.flavour ?? '') === 'affine:divider';
+  });
+  if (hasContent) {
+    page.addBlock('affine:divider', {}, note.id);
+  }
+
+  for (const block of blocks) {
+    if (block.flavour === 'affine:paragraph') {
+      page.addBlock(
+        'affine:paragraph',
+        { type: block.type ?? 'text', text: new Text(block.text) },
+        note.id
+      );
+    } else {
+      page.addBlock(
+        'affine:list',
+        { type: block.type, text: new Text(block.text) },
+        note.id
+      );
+    }
+  }
+  return true;
 }
 
 export const DEFAULT_JOURNAL_TEMPLATES: StoredJournalTemplate[] = [
