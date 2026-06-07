@@ -25,6 +25,7 @@ import {
   GEMINI_MODELS,
   GEMINI_RECOMMEND_MODEL_STORAGE_KEY,
   TAIWAN_CITIES,
+  TAIWAN_DISTRICTS,
   TRAVEL_RECOMMEND_CITY_KEY,
   TRAVEL_RECOMMEND_DISTRICT_KEY,
 } from '@affine/core/modules/ai-button/services/models';
@@ -113,8 +114,26 @@ const LocationSetting = ({
     (value: string) => {
       globalState.set(cityKey, value);
       setCity(value);
+      // reset the district when it doesn't belong to the new city
+      const districts = TAIWAN_DISTRICTS[value];
+      setDistrict((prev: string) => {
+        if (districts && !districts.includes(prev)) {
+          const next = districts[0];
+          globalState.set(districtKey, next);
+          return next;
+        }
+        return prev;
+      });
     },
-    [globalState, cityKey]
+    [globalState, cityKey, districtKey]
+  );
+
+  const handleDistrictSelect = useCallback(
+    (value: string) => {
+      globalState.set(districtKey, value);
+      setDistrict(value);
+    },
+    [globalState, districtKey]
   );
 
   const handleDistrictChange = useCallback(
@@ -124,6 +143,8 @@ const LocationSetting = ({
     },
     [globalState, districtKey]
   );
+
+  const districts = TAIWAN_DISTRICTS[city];
 
   return (
     <SettingRow name={name} desc={desc} data-testid={`${testIdPrefix}-row`}>
@@ -151,13 +172,39 @@ const LocationSetting = ({
             {city}
           </MenuTrigger>
         </Menu>
-        <Input
-          value={district}
-          onChange={handleDistrictChange}
-          placeholder="區域，如：大安區"
-          style={{ width: 120 }}
-          data-testid={`${testIdPrefix}-district-input`}
-        />
+        {districts ? (
+          <Menu
+            items={districts.map(item => (
+              <MenuItem
+                key={item}
+                selected={item === district}
+                onSelect={() => handleDistrictSelect(item)}
+                data-testid={`${testIdPrefix}-district-${item}`}
+              >
+                {item}
+              </MenuItem>
+            ))}
+            contentOptions={{
+              align: 'end',
+              style: { maxHeight: 360, overflowY: 'auto' },
+            }}
+          >
+            <MenuTrigger
+              style={{ width: 120 }}
+              data-testid={`${testIdPrefix}-district-trigger`}
+            >
+              {district}
+            </MenuTrigger>
+          </Menu>
+        ) : (
+          <Input
+            value={district}
+            onChange={handleDistrictChange}
+            placeholder="區域，如：大安區"
+            style={{ width: 120 }}
+            data-testid={`${testIdPrefix}-district-input`}
+          />
+        )}
       </div>
     </SettingRow>
   );
