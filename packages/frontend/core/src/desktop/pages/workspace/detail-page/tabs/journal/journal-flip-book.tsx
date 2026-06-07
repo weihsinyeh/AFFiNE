@@ -888,6 +888,7 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
   const [content, setContent] = useState('');
   const storeRef = useRef<any>(null);
   const isEditingRef = useRef(false);
+  const pendingWriteRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!journalDoc) {
@@ -901,6 +902,24 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
       const store = doc.blockSuiteDoc;
       storeRef.current = store;
       store.load();
+
+      const pending = pendingWriteRef.current;
+      if (pending !== null) {
+        pendingWriteRef.current = null;
+        if (pending.trim()) {
+          try {
+            const notes = store.getBlocksByFlavour('affine:note');
+            if (notes.length) {
+              store.addBlock(
+                'affine:paragraph',
+                { text: new Text(pending) },
+                notes[0].id
+              );
+            }
+          } catch {}
+        }
+      }
+
       const read = makeReadFn(store, isEditingRef, setContent);
       read();
       const sub = store.slots.blockUpdated.subscribe(read);
@@ -919,8 +938,9 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
     (newContent: string) => {
       const store = storeRef.current;
       if (!store) {
-        // Journal doc doesn't exist yet; create it if user typed something
-        if (newContent.trim()) journalService.ensureJournalByDate(dateKey);
+        if (!newContent.trim()) return;
+        pendingWriteRef.current = newContent;
+        journalService.ensureJournalByDate(dateKey);
         return;
       }
       try {
@@ -929,7 +949,6 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
         if (!notes.length) return;
 
         if (paragraphs.length > 0) {
-          // Write all content into the first paragraph, clear the rest
           const firstText = (paragraphs[0].model as { text?: Text }).text;
           if (firstText) {
             firstText.delete(0, firstText.length);
@@ -953,6 +972,8 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
     [journalService, dateKey]
   );
 
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const d = dayjs(dateKey);
 
   return (
@@ -973,12 +994,21 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
       <textarea
         className={styles.flipBookPageTextarea}
         value={content}
-        onChange={e => setContent(e.target.value)}
+        onChange={e => {
+          const val = e.target.value;
+          setContent(val);
+          if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+          syncTimerRef.current = setTimeout(() => syncContent(val), 300);
+        }}
         onFocus={() => {
           isEditingRef.current = true;
         }}
         onBlur={e => {
           isEditingRef.current = false;
+          if (syncTimerRef.current) {
+            clearTimeout(syncTimerRef.current);
+            syncTimerRef.current = null;
+          }
           syncContent(e.target.value);
         }}
         placeholder="No entry for this day…"

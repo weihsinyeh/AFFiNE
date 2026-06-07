@@ -643,34 +643,10 @@ const FullCalendarDayCell = ({
   // which must not light up the tag by itself.
   const [hasJournalContent, setHasJournalContent] = useState(false);
   const storeHasContent = useCallback((store: Doc['blockSuiteDoc']) => {
-    for (const note of store.getBlocksByFlavour('affine:note')) {
-      const children =
-        (note.model as unknown as { children?: unknown[] }).children ?? [];
-      for (const child of children) {
-        const block = child as {
-          flavour?: string;
-          text?: { toString: () => string };
-          props?: { text?: { toString: () => string } };
-        };
-        const text = (
-          block.text?.toString() ??
-          block.props?.text?.toString() ??
-          ''
-        ).trim();
-        if (text) return true;
-        // non-text blocks (images, attachments, databases, embeds...)
-        // count as content
-        const flavour = block.flavour ?? '';
-        if (
-          flavour &&
-          flavour !== 'affine:paragraph' &&
-          flavour !== 'affine:list'
-        ) {
-          return true;
-        }
-      }
-    }
-    return false;
+    return [
+      ...store.getBlocksByFlavour('affine:paragraph'),
+      ...store.getBlocksByFlavour('affine:list'),
+    ].some((b: any) => (b.model?.text?.toString() ?? '').trim().length > 0);
   }, []);
 
   // Reactive: re-categorise when any doc's metadata title changes
