@@ -27,6 +27,64 @@ export const headerCount = style({
 
 export const headerSpacer = style({ flex: 1 });
 
+export const filterGroup = style({
+  display: 'flex',
+  border: `1px solid ${cssVar('borderColor')}`,
+  borderRadius: 6,
+  overflow: 'hidden',
+});
+
+export const filterBtn = style({
+  height: 28,
+  padding: '0 10px',
+  border: 'none',
+  borderRight: `1px solid ${cssVar('borderColor')}`,
+  background: 'transparent',
+  color: cssVar('textSecondaryColor'),
+  fontSize: 12,
+  fontWeight: 500,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  transition: 'background 0.1s, color 0.1s',
+  selectors: {
+    '&:last-child': { borderRight: 'none' },
+    '&[data-active="true"]': {
+      background: cssVar('primaryColor'),
+      color: cssVar('pureWhite'),
+    },
+    '&:hover:not([data-active="true"])': {
+      background: cssVarV2('layer/background/hoverOverlay'),
+      color: cssVarV2('text/primary'),
+    },
+  },
+});
+
+export const rangeInputs = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+});
+
+export const filterDateInput = style({
+  height: 28,
+  border: `1px solid ${cssVar('borderColor')}`,
+  borderRadius: 5,
+  padding: '0 8px',
+  fontSize: 12,
+  color: cssVarV2('text/primary'),
+  background: cssVarV2('layer/background/primary'),
+  outline: 'none',
+  selectors: {
+    '&:focus': { borderColor: cssVar('primaryColor') },
+    '&::-webkit-calendar-picker-indicator': { opacity: 0.5, cursor: 'pointer' },
+  },
+});
+
+export const rangeSeparator = style({
+  fontSize: 12,
+  color: cssVar('textSecondaryColor'),
+});
+
 export const sortSelector = style({
   height: 28,
   padding: '0 26px 0 10px',

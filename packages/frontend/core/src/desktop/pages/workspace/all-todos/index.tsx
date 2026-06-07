@@ -545,21 +545,50 @@ const NewTodoRow = ({ onClose }: { onClose: () => void }) => {
 
 // ── Page ───────────────────────────────────────────────────────────────────
 
+type FilterMode = 'from-today' | 'range' | 'all';
+
+const parseTodoDate = (doc: DocRecord) =>
+  dayjs((doc.meta$.value.title ?? '').replace(/^Todo · /, ''), 'MMM D, YYYY');
+
 const AllTodosPage = () => {
   const docsService = useService(DocsService);
   const allDocs = useLiveData(docsService.list.docs$);
   const [creating, setCreating] = useState(false);
   const [sortMode, setSortMode] = useState<'deadline' | 'priority' | ''>('');
+  const [filterMode, setFilterMode] = useState<FilterMode>('from-today');
+  const [rangeStart, setRangeStart] = useState('');
+  const [rangeEnd, setRangeEnd] = useState('');
 
   const todoDocs = useMemo(
     () =>
-      allDocs.filter(
-        doc =>
-          !doc.meta$.value.trash &&
-          (doc.meta$.value.title ?? '').startsWith('Todo ·')
-      ),
+      allDocs
+        .filter(
+          doc =>
+            !doc.meta$.value.trash &&
+            (doc.meta$.value.title ?? '').startsWith('Todo ·')
+        )
+        .sort((a, b) => {
+          const da = parseTodoDate(a);
+          const db = parseTodoDate(b);
+          return da.isBefore(db) ? -1 : da.isAfter(db) ? 1 : 0;
+        }),
     [allDocs]
   );
+
+  const filteredTodoDocs = useMemo(() => {
+    const today = dayjs().startOf('day');
+    return todoDocs.filter(doc => {
+      const date = parseTodoDate(doc);
+      if (filterMode === 'from-today') return !date.isBefore(today);
+      if (filterMode === 'range') {
+        if (rangeStart && date.isBefore(dayjs(rangeStart))) return false;
+        if (rangeEnd && date.isAfter(dayjs(rangeEnd).endOf('day')))
+          return false;
+        return true;
+      }
+      return true;
+    });
+  }, [todoDocs, filterMode, rangeStart, rangeEnd]);
 
   return (
     <>
@@ -568,7 +597,47 @@ const AllTodosPage = () => {
       <ViewHeader>
         <div className={styles.header}>
           <span className={styles.headerTitle}>All Todos</span>
-          <span className={styles.headerCount}>{todoDocs.length}</span>
+          <span className={styles.headerCount}>{filteredTodoDocs.length}</span>
+          <div className={styles.filterGroup}>
+            <button
+              className={styles.filterBtn}
+              data-active={filterMode === 'from-today'}
+              onClick={() => setFilterMode('from-today')}
+            >
+              Today onwards
+            </button>
+            <button
+              className={styles.filterBtn}
+              data-active={filterMode === 'range'}
+              onClick={() => setFilterMode('range')}
+            >
+              Date range
+            </button>
+            <button
+              className={styles.filterBtn}
+              data-active={filterMode === 'all'}
+              onClick={() => setFilterMode('all')}
+            >
+              All
+            </button>
+          </div>
+          {filterMode === 'range' && (
+            <div className={styles.rangeInputs}>
+              <input
+                type="date"
+                className={styles.filterDateInput}
+                value={rangeStart}
+                onChange={e => setRangeStart(e.target.value)}
+              />
+              <span className={styles.rangeSeparator}>–</span>
+              <input
+                type="date"
+                className={styles.filterDateInput}
+                value={rangeEnd}
+                onChange={e => setRangeEnd(e.target.value)}
+              />
+            </div>
+          )}
           <div className={styles.headerSpacer} />
           <select
             className={styles.sortSelector}
@@ -577,7 +646,7 @@ const AllTodosPage = () => {
               setSortMode(e.target.value as 'deadline' | 'priority' | '')
             }
           >
-            <option value="">Sort: Default</option>
+            <option value="">Sort: Date ↑</option>
             <option value="deadline">Sort: Deadline ↑</option>
             <option value="priority">Sort: Priority ↓</option>
           </select>
@@ -605,13 +674,18 @@ const AllTodosPage = () => {
               <tbody>
                 {creating && <NewTodoRow onClose={() => setCreating(false)} />}
                 {sortMode ? (
-                  <SortedTaskList todoDocs={todoDocs} sortMode={sortMode} />
+                  <SortedTaskList
+                    todoDocs={filteredTodoDocs}
+                    sortMode={sortMode}
+                  />
                 ) : (
-                  todoDocs.map(doc => <TodoDocSection key={doc.id} doc={doc} />)
+                  filteredTodoDocs.map(doc => (
+                    <TodoDocSection key={doc.id} doc={doc} />
+                  ))
                 )}
               </tbody>
             </table>
-            {todoDocs.length === 0 && !creating && (
+            {filteredTodoDocs.length === 0 && !creating && (
               <div className={styles.empty}>No todos yet</div>
             )}
           </div>
