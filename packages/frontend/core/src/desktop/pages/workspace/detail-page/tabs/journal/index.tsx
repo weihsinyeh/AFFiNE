@@ -50,6 +50,7 @@ import {
 } from '@blocksuite/icons/rc';
 import {
   FrameworkScope,
+  LiveData,
   useLiveData,
   useService,
   useServiceOptional,
@@ -492,22 +493,41 @@ const JournalCalendarDateCell = ({
 
 const MeetingDropdown = ({ docs }: { docs: DocRecord[] }) => {
   const workbench = useService(WorkbenchService).workbench;
+  const docsService = useService(DocsService);
   const [open, setOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
 
+  // Reactive: re-render when any meeting title changes
+  const docTitlesLiveData$ = useMemo(
+    () =>
+      LiveData.computed(get => {
+        const result: Record<string, string> = {};
+        for (const doc of docs) {
+          const title = get(doc.meta$)?.title ?? '';
+          result[doc.id] = title.replace(/^Meeting · /, '') || 'Untitled';
+        }
+        return result;
+      }),
+    [docs]
+  );
+  const docTitles = useLiveData(docTitlesLiveData$) ?? {};
+
   const handleStartRename = useCallback((doc: DocRecord) => {
     setRenamingId(doc.id);
-    setDraft(doc.meta$.value.title || '');
+    setDraft((doc.meta$.value?.title ?? '').replace(/^Meeting · /, ''));
   }, []);
 
   const handleCommitRename = useCallback(
     (doc: DocRecord) => {
       const trimmed = draft.trim();
-      if (trimmed) doc.setMeta({ title: trimmed });
+      if (trimmed)
+        docsService
+          .changeDocTitle(doc.id, `Meeting · ${trimmed}`)
+          .catch(console.error);
       setRenamingId(null);
     },
-    [draft]
+    [draft, docsService]
   );
 
   if (docs.length === 1) {
@@ -531,7 +551,7 @@ const MeetingDropdown = ({ docs }: { docs: DocRecord[] }) => {
       items={
         <div className={styles.meetingDropdownContent}>
           {docs.map(doc => {
-            const title = doc.meta$.value.title || 'Untitled';
+            const title = docTitles[doc.id] ?? 'Untitled';
             if (renamingId === doc.id) {
               return (
                 <div
@@ -613,11 +633,9 @@ const FullCalendarDayCell = ({
   const events = useLiveData(
     useMemo(() => calendar.eventsByDate$(day), [calendar, day])
   );
-  const journals = useLiveData(
-    useMemo(
-      () => journalService.journalsByDate$(dateKey),
-      [dateKey, journalService]
-    )
+  const journalsByDate$ = useMemo(
+    () => journalService.journalsByDate$(dateKey),
+    [dateKey, journalService]
   );
 
   // The Journal tag should only show when the journal actually has content
@@ -655,24 +673,26 @@ const FullCalendarDayCell = ({
     return false;
   }, []);
 
-  // Categorise journals for this day by title prefix so todo/meeting docs
-  // (tagged with setJournalDate at creation) render as distinct tags.
-  const { journalDocs, todoDocs, meetingDocs } = useMemo(() => {
-    const journalDocs = [];
-    const todoDocs = [];
-    const meetingDocs = [];
-    for (const doc of journals) {
-      const title = doc.meta$.value.title || '';
-      if (title.startsWith('Todo ·')) {
-        todoDocs.push(doc);
-      } else if (title.startsWith('Meeting ·')) {
-        meetingDocs.push(doc);
-      } else {
-        journalDocs.push(doc);
-      }
-    }
-    return { journalDocs, todoDocs, meetingDocs };
-  }, [journals]);
+  // Reactive: re-categorise when any doc's metadata title changes
+  const categorizedDocs$ = useMemo(
+    () =>
+      LiveData.computed(get => {
+        const journalDocs: DocRecord[] = [];
+        const todoDocs: DocRecord[] = [];
+        const meetingDocs: DocRecord[] = [];
+        for (const doc of get(journalsByDate$) ?? []) {
+          const title = get(doc.meta$)?.title ?? '';
+          if (title.startsWith('Todo ·')) todoDocs.push(doc);
+          else if (title.startsWith('Meeting ·')) meetingDocs.push(doc);
+          else journalDocs.push(doc);
+        }
+        return { journalDocs, todoDocs, meetingDocs };
+      }),
+    [journalsByDate$]
+  );
+  const { journalDocs, todoDocs, meetingDocs } = useLiveData(
+    categorizedDocs$
+  ) ?? { journalDocs: [], todoDocs: [], meetingDocs: [] };
 
   useEffect(() => {
     if (journalDocs.length === 0) {

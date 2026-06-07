@@ -264,7 +264,7 @@ export const BlocksuiteDocEditor = forwardRef<
         {!isJournal ? (
           <LitDocTitle doc={page} ref={onTitleRef} />
         ) : (
-          <BlocksuiteEditorJournalDocTitle page={page} />
+          <BlocksuiteEditorJournalDocTitle page={page} readonly={readonly} />
         )}
         {isJournal && !shared && !readonly ? (
           <JournalTodayTasks page={page} />

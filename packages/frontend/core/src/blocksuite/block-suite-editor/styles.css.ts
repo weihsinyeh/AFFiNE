@@ -67,6 +67,25 @@ export const pageReferenceIcon = style({
   transform: 'translate(2px, -1px)',
 });
 
+export const meetingTitleInput = style({
+  background: 'none',
+  border: 'none',
+  outline: 'none',
+  padding: 0,
+  margin: 0,
+  fontSize: 'inherit',
+  fontFamily: 'inherit',
+  fontWeight: 'inherit',
+  color: 'inherit',
+  width: '100%',
+  lineHeight: 'inherit',
+  cursor: 'text',
+  caretColor: cssVar('brandColor'),
+  ':focus': {
+    caretColor: cssVar('brandColor'),
+  },
+});
+
 export const docPropertiesTableContainer = style({
   display: 'flex',
   width: '100%',
