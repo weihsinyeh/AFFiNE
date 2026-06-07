@@ -459,6 +459,8 @@ export const TAIWAN_DISTRICTS: Record<string, string[]> = {
     '蘭嶼鄉',
   ],
   澎湖縣: ['馬公市', '湖西鄉', '白沙鄉', '西嶼鄉', '望安鄉', '七美鄉'],
+  金門縣: ['金城鎮', '金湖鎮', '金沙鎮', '金寧鄉', '烈嶼鄉', '烏坵鄉'],
+  連江縣: ['南竿鄉', '北竿鄉', '莒光鄉', '東引鄉'],
 };
 
 export interface AIModel {
