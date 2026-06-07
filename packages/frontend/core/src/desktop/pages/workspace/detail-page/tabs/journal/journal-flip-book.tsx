@@ -20,6 +20,313 @@ import React, {
 
 import * as styles from './journal.css';
 
+// ── Sketch colors ──────────────────────────────────────────────────────────
+
+const SKETCH_COLORS = [
+  { value: '#1a1615', label: 'Ink' },
+  { value: '#b33030', label: 'Red' },
+  { value: '#2563a8', label: 'Blue' },
+  { value: '#2a7a3b', label: 'Green' },
+  { value: '#7b4fa6', label: 'Purple' },
+];
+
+// ── Inline SVG pen icon ─────────────────────────────────────────────────────
+
+const PenSketchIcon = () => (
+  <svg
+    width="13"
+    height="13"
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+// ── Per-page sketch canvas ─────────────────────────────────────────────────
+//
+// Renders a transparent canvas as the page background (z-index 0) so
+// handwriting appears BEHIND the text content. A separate transparent div
+// (z-index 2) captures drawing events when active, leaving the text layer
+// (z-index 1) untouched visually. The pen button and colour toolbar sit at
+// z-index 3 and remain clickable at all times.
+
+const PageSketchCanvas = ({
+  dateKey,
+  side,
+}: {
+  dateKey: string;
+  side: 'left' | 'right';
+}) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isDrawingRef = useRef(false);
+  const lastPtRef = useRef<{ x: number; y: number } | null>(null);
+  const colorRef = useRef(SKETCH_COLORS[0].value);
+  const eraserRef = useRef(false);
+
+  const [isActive, setIsActive] = useState(false);
+  const [color, setColor] = useState(SKETCH_COLORS[0].value);
+  const [isEraser, setIsEraser] = useState(false);
+
+  useEffect(() => {
+    colorRef.current = color;
+  }, [color]);
+  useEffect(() => {
+    eraserRef.current = isEraser;
+  }, [isEraser]);
+
+  const storageKey = `journal-sketch-${side}-${dateKey}`;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    // Observe the parent so that setting canvas.width/height (which changes
+    // the canvas's intrinsic size) never re-triggers the observer.
+    const parent = canvas.parentElement;
+    if (!parent) return;
+
+    let pendingImg: HTMLImageElement | null = null;
+    let cancelled = false;
+
+    const loadSketch = () => {
+      // Cancel any in-flight image load to prevent stale draws.
+      if (pendingImg) {
+        pendingImg.onload = null;
+        pendingImg = null;
+      }
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const saved = localStorage.getItem(storageKey);
+      if (!saved) return;
+      const img = new Image();
+      pendingImg = img;
+      img.onload = () => {
+        if (cancelled || img !== pendingImg) return;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      };
+      img.src = saved;
+    };
+
+    // Use offsetWidth/offsetHeight (layout dimensions, unaffected by the
+    // ancestor rotateX(-5deg) transform) instead of getBoundingClientRect()
+    // which returns the projected visual size and can be ~1/3 too small.
+    const sizeAndLoad = (forceLoad: boolean) => {
+      const w = parent.offsetWidth;
+      const h = parent.offsetHeight;
+      if (!w || !h) return;
+      const sizeChanged = canvas.width !== w || canvas.height !== h;
+      if (sizeChanged) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      if (sizeChanged || forceLoad) loadSketch();
+    };
+
+    sizeAndLoad(true); // always load on storageKey change
+    const ro = new ResizeObserver(() => sizeAndLoad(false));
+    ro.observe(parent);
+
+    return () => {
+      cancelled = true;
+      ro.disconnect();
+      if (pendingImg) pendingImg.onload = null;
+    };
+  }, [storageKey]);
+
+  // ESC exits draw mode
+  useEffect(() => {
+    if (!isActive) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsActive(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isActive]);
+
+  const getPoint = (e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const sx = canvas.width / rect.width;
+    const sy = canvas.height / rect.height;
+    if ('touches' in e) {
+      if (!e.touches.length) return null;
+      const t = e.touches[0];
+      return {
+        x: (t.clientX - rect.left) * sx,
+        y: (t.clientY - rect.top) * sy,
+      };
+    }
+    return {
+      x: ((e as React.MouseEvent).clientX - rect.left) * sx,
+      y: ((e as React.MouseEvent).clientY - rect.top) * sy,
+    };
+  };
+
+  const saveSketch = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (canvas) localStorage.setItem(storageKey, canvas.toDataURL());
+  }, [storageKey]);
+
+  const applyStroke = (
+    pt: { x: number; y: number },
+    from?: { x: number; y: number }
+  ) => {
+    const ctx = canvasRef.current?.getContext('2d');
+    if (!ctx) return;
+    const sz = eraserRef.current ? 12 : 2;
+    if (eraserRef.current) {
+      ctx.globalCompositeOperation = 'destination-out';
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    if (from) {
+      ctx.lineWidth = sz;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = eraserRef.current ? 'rgba(0,0,0,1)' : colorRef.current;
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(pt.x, pt.y);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, sz / 2, 0, Math.PI * 2);
+      ctx.fillStyle = eraserRef.current ? 'rgba(0,0,0,1)' : colorRef.current;
+      ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  };
+
+  const onDown = (e: React.MouseEvent | React.TouchEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const pt = getPoint(e);
+    if (!pt) return;
+    isDrawingRef.current = true;
+    lastPtRef.current = pt;
+    applyStroke(pt);
+  };
+
+  const onMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isDrawingRef.current) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const pt = getPoint(e);
+    if (!pt) return;
+    applyStroke(pt, lastPtRef.current ?? undefined);
+    lastPtRef.current = pt;
+  };
+
+  const onUp = useCallback(() => {
+    if (!isDrawingRef.current) return;
+    isDrawingRef.current = false;
+    lastPtRef.current = null;
+    saveSketch();
+  }, [saveSketch]);
+
+  const clearCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!ctx || !canvas) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    localStorage.removeItem(storageKey);
+  }, [storageKey]);
+
+  return (
+    <>
+      {/* Background canvas — always behind text content */}
+      <canvas ref={canvasRef} className={styles.flipBookPageCanvas} />
+
+      {/* Transparent draw-capture layer — only mounted in draw mode */}
+      {isActive && (
+        <div
+          className={styles.flipBookPageDrawLayer}
+          onMouseDown={onDown}
+          onMouseMove={onMove}
+          onMouseUp={onUp}
+          onMouseLeave={onUp}
+          onTouchStart={onDown}
+          onTouchMove={onMove}
+          onTouchEnd={onUp}
+        />
+      )}
+
+      {/* Pen toggle button */}
+      <button
+        className={styles.flipBookPenBtn}
+        data-active={isActive}
+        onClick={e => {
+          e.stopPropagation();
+          setIsActive(v => !v);
+        }}
+        onMouseDown={e => e.stopPropagation()}
+        onTouchStart={e => e.stopPropagation()}
+        title={isActive ? '關閉手寫 (ESC)' : '手寫筆記'}
+      >
+        <PenSketchIcon />
+      </button>
+
+      {/* Mini colour toolbar — floats at the bottom of the page */}
+      {isActive && (
+        <div className={styles.flipBookPageSketchBar}>
+          {SKETCH_COLORS.map(c => (
+            <button
+              key={c.value}
+              className={styles.flipBookPageSketchSwatch}
+              style={{ background: c.value }}
+              data-active={!isEraser && color === c.value}
+              onClick={e => {
+                e.stopPropagation();
+                setColor(c.value);
+                colorRef.current = c.value;
+                setIsEraser(false);
+                eraserRef.current = false;
+              }}
+              onMouseDown={e => e.stopPropagation()}
+              title={c.label}
+            />
+          ))}
+          <div className={styles.flipBookPageSketchDivider} />
+          <button
+            className={styles.flipBookPageSketchBtn}
+            data-active={isEraser}
+            onClick={e => {
+              e.stopPropagation();
+              const next = !isEraser;
+              setIsEraser(next);
+              eraserRef.current = next;
+            }}
+            onMouseDown={e => e.stopPropagation()}
+            title="Eraser"
+          >
+            E
+          </button>
+          <button
+            className={styles.flipBookPageSketchBtn}
+            onClick={e => {
+              e.stopPropagation();
+              clearCanvas();
+            }}
+            onMouseDown={e => e.stopPropagation()}
+            title="Clear"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+    </>
+  );
+};
+
 // ── Inline SVG book icon ────────────────────────────────────────────────────
 
 export const BookOpenSvgIcon = () => (
@@ -816,6 +1123,7 @@ export const JournalFlipBook = ({
               aria-label="Drag right to go to previous journal day"
               aria-disabled={!prevJournalDay}
             >
+              <PageSketchCanvas dateKey={staticLeftDay} side="left" />
               <LeftPageContent dateKey={staticLeftDay} />
             </div>
 
@@ -837,6 +1145,7 @@ export const JournalFlipBook = ({
               aria-label="Drag left to go to next journal day"
               aria-disabled={!nextJournalDay}
             >
+              <PageSketchCanvas dateKey={staticRightDay} side="right" />
               <RightPageContent dateKey={staticRightDay} />
             </div>
 

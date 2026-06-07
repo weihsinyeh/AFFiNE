@@ -899,6 +899,7 @@ export const flipBookTitle = style({
 });
 
 export const flipBookBody = style({
+  position: 'relative',
   flex: '1 1 auto',
   minHeight: 0,
   display: 'flex',
@@ -1332,6 +1333,131 @@ export const flipBookMeetingNameInput = style({
   selectors: {
     '&::placeholder': {
       color: flipBookTextMuted,
+    },
+  },
+});
+
+// ── Per-page sketch layer ──────────────────────────────────────────────────
+
+/** Transparent canvas sitting behind all page content. */
+export const flipBookPageCanvas = style({
+  position: 'absolute',
+  inset: 0,
+  zIndex: 0,
+  pointerEvents: 'none',
+  display: 'block',
+});
+
+/** Transparent div that captures draw events when sketch mode is active. */
+export const flipBookPageDrawLayer = style({
+  position: 'absolute',
+  inset: 0,
+  zIndex: 2,
+  cursor: 'crosshair',
+  touchAction: 'none',
+});
+
+/** Pen icon button: top-right corner of each page, always above draw layer. */
+export const flipBookPenBtn = style({
+  position: 'absolute',
+  top: 6,
+  right: 6,
+  zIndex: 3,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 20,
+  height: 20,
+  borderRadius: 4,
+  border: 'none',
+  background: 'transparent',
+  color: flipBookTextMuted,
+  cursor: 'pointer',
+  padding: 0,
+  opacity: 0.35,
+  transition: 'opacity 0.15s, background 0.15s, color 0.15s',
+  selectors: {
+    [`${flipBookStaticPage}:hover &`]: {
+      opacity: 0.7,
+    },
+    '&:hover': {
+      opacity: 1,
+      background: 'rgba(0,0,0,0.07)',
+      color: flipBookTextPrimary,
+    },
+    '&[data-active="true"]': {
+      opacity: 1,
+      background: 'rgba(0,0,0,0.1)',
+      color: flipBookTextPrimary,
+    },
+  },
+});
+
+/** Mini floating toolbar at the bottom of the page while drawing. */
+export const flipBookPageSketchBar = style({
+  position: 'absolute',
+  bottom: 6,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  zIndex: 3,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 3,
+  padding: '3px 7px',
+  borderRadius: 20,
+  background: 'rgba(250, 247, 239, 0.92)',
+  border: '1px solid rgba(0,0,0,0.1)',
+  boxShadow: '0 1px 5px rgba(0,0,0,0.14)',
+  backdropFilter: 'blur(4px)',
+  whiteSpace: 'nowrap',
+});
+
+export const flipBookPageSketchSwatch = style({
+  flexShrink: 0,
+  width: 13,
+  height: 13,
+  borderRadius: '50%',
+  border: '2px solid transparent',
+  cursor: 'pointer',
+  padding: 0,
+  selectors: {
+    '&[data-active="true"]': {
+      borderColor: '#2c2820',
+      boxShadow: '0 0 0 1px rgba(255,255,255,0.9) inset',
+    },
+  },
+});
+
+export const flipBookPageSketchDivider = style({
+  flexShrink: 0,
+  width: 1,
+  height: 11,
+  background: 'rgba(0,0,0,0.14)',
+  margin: '0 1px',
+});
+
+export const flipBookPageSketchBtn = style({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 17,
+  height: 17,
+  borderRadius: 3,
+  border: 'none',
+  background: 'transparent',
+  color: flipBookTextMuted,
+  fontSize: 10,
+  cursor: 'pointer',
+  padding: 0,
+  selectors: {
+    '&:hover': {
+      background: 'rgba(0,0,0,0.1)',
+      color: flipBookTextPrimary,
+    },
+    '&[data-active="true"]': {
+      background: 'rgba(0,0,0,0.13)',
+      color: flipBookTextPrimary,
+      fontWeight: 700,
     },
   },
 });
