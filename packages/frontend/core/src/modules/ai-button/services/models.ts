@@ -463,6 +463,35 @@ export const TAIWAN_DISTRICTS: Record<string, string[]> = {
   連江縣: ['南竿鄉', '北竿鄉', '莒光鄉', '東引鄉'],
 };
 
+/**
+ * Special dropdown option: pick a random city / district at
+ * generation time. When the city is 隨機 the district can only be 隨機.
+ */
+export const RANDOM_LOCATION_OPTION = '隨機';
+
+const pickRandom = <T>(items: T[]): T =>
+  items[Math.floor(Math.random() * items.length)];
+
+/**
+ * Resolve the stored city/district into a concrete location,
+ * randomizing the parts set to 隨機 (or not belonging to the city).
+ */
+export function resolveRecommendLocation(
+  city: string,
+  district: string
+): { city: string; district: string } {
+  const resolvedCity =
+    city === RANDOM_LOCATION_OPTION ? pickRandom(TAIWAN_CITIES) : city;
+  const districts = TAIWAN_DISTRICTS[resolvedCity];
+  const resolvedDistrict =
+    district === RANDOM_LOCATION_OPTION || !districts?.includes(district)
+      ? districts
+        ? pickRandom(districts)
+        : district
+      : district;
+  return { city: resolvedCity, district: resolvedDistrict };
+}
+
 export interface AIModel {
   name: string;
   id: string;

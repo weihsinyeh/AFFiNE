@@ -24,6 +24,7 @@ import {
   GEMINI_JOURNAL_MODEL_STORAGE_KEY,
   GEMINI_MODELS,
   GEMINI_RECOMMEND_MODEL_STORAGE_KEY,
+  RANDOM_LOCATION_OPTION,
   TAIWAN_CITIES,
   TAIWAN_DISTRICTS,
   TRAVEL_RECOMMEND_CITY_KEY,
@@ -114,10 +115,22 @@ const LocationSetting = ({
     (value: string) => {
       globalState.set(cityKey, value);
       setCity(value);
-      // reset the district when it doesn't belong to the new city
-      const districts = TAIWAN_DISTRICTS[value];
       setDistrict((prev: string) => {
-        if (districts && !districts.includes(prev)) {
+        // random city -> the district can only be random
+        if (value === RANDOM_LOCATION_OPTION) {
+          if (prev !== RANDOM_LOCATION_OPTION) {
+            globalState.set(districtKey, RANDOM_LOCATION_OPTION);
+          }
+          return RANDOM_LOCATION_OPTION;
+        }
+        // reset the district when it doesn't belong to the new city
+        // (random stays valid for every city)
+        const districts = TAIWAN_DISTRICTS[value];
+        if (
+          prev !== RANDOM_LOCATION_OPTION &&
+          districts &&
+          !districts.includes(prev)
+        ) {
           const next = districts[0];
           globalState.set(districtKey, next);
           return next;
@@ -144,13 +157,20 @@ const LocationSetting = ({
     [globalState, districtKey]
   );
 
-  const districts = TAIWAN_DISTRICTS[city];
+  // random city -> only the random district option; otherwise prepend
+  // the random option to the city's district list
+  const districts =
+    city === RANDOM_LOCATION_OPTION
+      ? [RANDOM_LOCATION_OPTION]
+      : TAIWAN_DISTRICTS[city]
+        ? [RANDOM_LOCATION_OPTION, ...TAIWAN_DISTRICTS[city]]
+        : undefined;
 
   return (
     <SettingRow name={name} desc={desc} data-testid={`${testIdPrefix}-row`}>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <Menu
-          items={TAIWAN_CITIES.map(item => (
+          items={[RANDOM_LOCATION_OPTION, ...TAIWAN_CITIES].map(item => (
             <MenuItem
               key={item}
               selected={item === city}

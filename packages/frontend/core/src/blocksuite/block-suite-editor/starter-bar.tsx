@@ -9,6 +9,7 @@ import {
   FOOD_RECOMMEND_DISTRICT_KEY,
   GEMINI_API_KEY_STORAGE_KEY,
   GEMINI_RECOMMEND_MODEL_STORAGE_KEY,
+  resolveRecommendLocation,
   TRAVEL_RECOMMEND_CITY_KEY,
   TRAVEL_RECOMMEND_DISTRICT_KEY,
 } from '@affine/core/modules/ai-button/services/models';
@@ -114,18 +115,19 @@ const StarterBarNotEmpty = ({ doc }: { doc: Store }) => {
         const modelId =
           globalState.get<string>(GEMINI_RECOMMEND_MODEL_STORAGE_KEY) ??
           DEFAULT_RECOMMEND_MODEL_ID;
-        const city =
+        // resolve 隨機 city/district into a concrete location
+        const { city, district } = resolveRecommendLocation(
           globalState.get<string>(
             kind === 'travel'
               ? TRAVEL_RECOMMEND_CITY_KEY
               : FOOD_RECOMMEND_CITY_KEY
-          ) ?? DEFAULT_RECOMMEND_CITY;
-        const district =
+          ) ?? DEFAULT_RECOMMEND_CITY,
           globalState.get<string>(
             kind === 'travel'
               ? TRAVEL_RECOMMEND_DISTRICT_KEY
               : FOOD_RECOMMEND_DISTRICT_KEY
-          ) ?? DEFAULT_RECOMMEND_DISTRICT;
+          ) ?? DEFAULT_RECOMMEND_DISTRICT
+        );
 
         const prompt = buildRecommendPrompt(kind, city, district);
         let result = '';
