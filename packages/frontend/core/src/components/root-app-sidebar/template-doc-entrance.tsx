@@ -1,56 +1,33 @@
-import { Menu, MenuSeparator } from '@affine/component';
 import { MenuItem as SidebarMenuItem } from '@affine/core/modules/app-sidebar/views';
-import {
-  TemplateListMenuAdd,
-  TemplateListMenuContentScrollable,
-} from '@affine/core/modules/template-doc/view/template-list-menu';
 import { useI18n } from '@affine/i18n';
-import track from '@affine/track';
 import { TemplateIcon } from '@blocksuite/icons/rc';
 import { useCallback, useState } from 'react';
 
+import { JournalTemplateManagerDialog } from './journal-template-manager';
+
+/**
+ * Sidebar "Template" entry — opens the journal template manager where the
+ * built-in journal templates (學習/旅遊/美食/心情) can be edited and new
+ * ones added.
+ */
 export const TemplateDocEntrance = () => {
   const t = useI18n();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [open, setOpen] = useState(false);
 
-  const toggleMenu = useCallback(() => {
-    setMenuOpen(prev => !prev);
-  }, []);
-
-  const onMenuOpenChange = useCallback((open: boolean) => {
-    if (open) track.$.sidebar.template.openTemplateListMenu();
-    setMenuOpen(open);
+  const openManager = useCallback(() => {
+    setOpen(true);
   }, []);
 
   return (
-    <SidebarMenuItem
-      data-testid="sidebar-template-doc-entrance"
-      icon={<TemplateIcon />}
-      onClick={toggleMenu}
-    >
-      <Menu
-        rootOptions={{ open: menuOpen, onOpenChange: onMenuOpenChange }}
-        contentOptions={{
-          side: 'right',
-          align: 'end',
-          alignOffset: -4,
-          sideOffset: 16,
-          style: { width: 280 },
-        }}
-        items={
-          <TemplateListMenuContentScrollable
-            asLink
-            suffixItems={
-              <>
-                <MenuSeparator />
-                <TemplateListMenuAdd />
-              </>
-            }
-          />
-        }
+    <>
+      <SidebarMenuItem
+        data-testid="sidebar-template-doc-entrance"
+        icon={<TemplateIcon />}
+        onClick={openManager}
       >
         <span>{t['Template']()}</span>
-      </Menu>
-    </SidebarMenuItem>
+      </SidebarMenuItem>
+      <JournalTemplateManagerDialog open={open} onOpenChange={setOpen} />
+    </>
   );
 };
