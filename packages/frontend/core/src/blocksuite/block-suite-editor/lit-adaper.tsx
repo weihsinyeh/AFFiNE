@@ -50,6 +50,7 @@ import {
 import { BiDirectionalLinkPanel } from './bi-directional-link-panel';
 import { DocIconPicker } from './doc-icon-picker';
 import { BlocksuiteEditorJournalDocTitle } from './journal-doc-title';
+import { JournalTemplateBar } from './journal-template-bar';
 import { JournalTodayTasks } from './journal-today-tasks';
 import { StarterBar } from './starter-bar';
 import * as styles from './styles.css';
@@ -279,6 +280,9 @@ export const BlocksuiteDocEditor = forwardRef<
               defaultOpenProperty={defaultOpenProperty}
             />
           </div>
+        ) : null}
+        {isJournal && !shared && !readonly ? (
+          <JournalTemplateBar page={page} />
         ) : null}
         <LitDocEditor
           className={styles.docContainer}
