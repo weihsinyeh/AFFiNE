@@ -187,8 +187,8 @@ export const ApiKeySettings = () => {
   return (
     <>
       <SettingHeader
-        title="API Key"
-        subtitle="Bring your own API key to chat with AI models."
+        title="AI智慧功能設定"
+        subtitle="設定你的 API key 與 AI 智慧功能（模型、推薦地區等）。"
         data-testid="api-key-title"
       />
       <SettingWrapper title="Google Gemini">

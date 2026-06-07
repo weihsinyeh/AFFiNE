@@ -68,7 +68,7 @@ export const useGeneralSettingList = (): GeneralSettingList => {
     const settings: GeneralSettingList = [
       {
         key: 'api-key',
-        title: 'API Key',
+        title: 'AI智慧功能設定',
         icon: <LockIcon />,
         testId: 'api-key-panel-trigger',
       },
