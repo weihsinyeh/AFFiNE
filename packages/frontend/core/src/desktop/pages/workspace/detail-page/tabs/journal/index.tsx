@@ -678,21 +678,25 @@ const FullCalendarDayCell = ({
     () =>
       LiveData.computed(get => {
         const journalDocs: DocRecord[] = [];
-        const todoDocs: DocRecord[] = [];
         const meetingDocs: DocRecord[] = [];
+        let todoDoc: DocRecord | null = null;
         for (const doc of get(journalsByDate$) ?? []) {
           const title = get(doc.meta$)?.title ?? '';
-          if (title.startsWith('Todo ·')) todoDocs.push(doc);
-          else if (title.startsWith('Meeting ·')) meetingDocs.push(doc);
+          if (title.startsWith('Meeting ·')) meetingDocs.push(doc);
+          else if (title.startsWith('Todo ·')) todoDoc = doc;
           else journalDocs.push(doc);
         }
-        return { journalDocs, todoDocs, meetingDocs };
+        return { journalDocs, meetingDocs, todoDoc };
       }),
     [journalsByDate$]
   );
-  const { journalDocs, todoDocs, meetingDocs } = useLiveData(
+  const { journalDocs, meetingDocs, todoDoc } = useLiveData(
     categorizedDocs$
-  ) ?? { journalDocs: [], todoDocs: [], meetingDocs: [] };
+  ) ?? {
+    journalDocs: [],
+    meetingDocs: [],
+    todoDoc: null,
+  };
 
   useEffect(() => {
     if (journalDocs.length === 0) {
@@ -723,100 +727,68 @@ const FullCalendarDayCell = ({
     return () => cleanups.forEach(fn => fn());
   }, [journalDocs, docsService, storeHasContent]);
 
+  // Show a "Tasks" tag when a Todo · DATE doc exists for this date
+  const hasTodoSection = todoDoc !== null;
+
   const tagCount =
     (hasJournalContent ? 1 : 0) +
-    (todoDocs.length > 0 ? 1 : 0) +
+    (hasTodoSection ? 1 : 0) +
     (meetingDocs.length > 0 ? 1 : 0);
   const maxEvents = Math.max(0, 4 - tagCount);
   const visibleEvents = events.slice(0, maxEvents);
   const hiddenCount = events.length - visibleEvents.length;
 
-  const isOnAllTodos = workbench.location$.value.pathname === '/all-todos';
-
   const handleCreateDoc = useCallback(
     (type: 'journal' | 'todo' | 'meeting') => {
-      // Journal: one per day — create if absent, open either way.
       if (type === 'journal') {
         const journalDoc = journalService.ensureJournalByDate(dateKey);
         workbench.openDoc(journalDoc.id, { at: 'active' });
         return;
       }
-      // Todo: one per day — if it already exists, stay on All Todos or go to
-      // the day's journal where the "Today's Tasks" section surfaces it.
-      if (type === 'todo' && todoDocs.length > 0) {
-        if (isOnAllTodos) return;
-        const journalDoc = journalService.ensureJournalByDate(dateKey);
-        workbench.openDoc(journalDoc.id, { at: 'active' });
+      if (type === 'todo') {
+        if (todoDoc) {
+          workbench.openDoc(todoDoc.id, { at: 'active' });
+        } else {
+          const newDoc = docsService.createDoc({
+            title: `Todo · ${day.format('MMM D, YYYY')}`,
+          });
+          journalService.setJournalDate(newDoc.id, dateKey);
+          workbench.openDoc(newDoc.id, { at: 'active' });
+        }
         return;
       }
-      // Meeting: multiple allowed — always create a new one with a sequence number.
-
-      const prefix = type === 'todo' ? 'Todo' : 'Meeting';
-      const baseTitle = `${prefix} · ${day.format('MMM D, YYYY')}`;
-      const count = meetingDocs.length;
+      // Meeting: always create a new one (multiple allowed per day).
+      const baseTitle = `Meeting · ${day.format('MMM D, YYYY')}`;
       const title =
-        type === 'meeting' && count > 0
-          ? `${baseTitle} (${count + 1})`
+        meetingDocs.length > 0
+          ? `${baseTitle} (${meetingDocs.length + 1})`
           : baseTitle;
       const newDoc = docsService.createDoc({
         title,
-        docProps:
-          type === 'todo'
-            ? {
-                // tasks are added from the journal's "Today's Tasks"
-                // section — start with no placeholder items
-                paragraph: { type: 'h3', text: new Text("Today's Tasks") },
-              }
-            : {
-                paragraph: { type: 'h3', text: new Text('Meeting Notes') },
-                onStoreLoad: (store, { noteId }) => {
-                  store.addBlock(
-                    'affine:paragraph',
-                    { type: 'h6', text: new Text('Location') },
-                    noteId
-                  );
-                  store.addBlock(
-                    'affine:paragraph',
-                    { text: new Text('') },
-                    noteId
-                  );
-                  store.addBlock(
-                    'affine:paragraph',
-                    { type: 'h6', text: new Text('Discussion Points') },
-                    noteId
-                  );
-                  store.addBlock(
-                    'affine:paragraph',
-                    { text: new Text('') },
-                    noteId
-                  );
-                },
-              },
+        docProps: {
+          paragraph: { type: 'h3', text: new Text('Meeting Notes') },
+          onStoreLoad: (store, { noteId }) => {
+            store.addBlock(
+              'affine:paragraph',
+              { type: 'h6', text: new Text('Location') },
+              noteId
+            );
+            store.addBlock('affine:paragraph', { text: new Text('') }, noteId);
+            store.addBlock(
+              'affine:paragraph',
+              { type: 'h6', text: new Text('Discussion Points') },
+              noteId
+            );
+            store.addBlock('affine:paragraph', { text: new Text('') }, noteId);
+          },
+        },
       });
       const journalDoc = journalService.ensureJournalByDate(dateKey);
       journalService.setJournalDate(newDoc.id, dateKey);
-      if (type === 'todo') {
-        // When on All Todos, the new row appears reactively — no navigation needed.
-        if (!isOnAllTodos) {
-          // todos surface in the journal's "Today's Tasks" section — open the
-          // journal instead of the raw todo doc
-          workbench.openDoc(journalDoc.id, { at: 'active' });
-        }
-      } else {
-        docsService.addLinkedDoc(journalDoc.id, newDoc.id).catch(console.error);
-        workbench.openDoc(newDoc.id, { at: 'active' });
-      }
+      docsService.addLinkedDoc(journalDoc.id, newDoc.id).catch(console.error);
+      workbench.openDoc(newDoc.id, { at: 'active' });
     },
-    [
-      dateKey,
-      day,
-      docsService,
-      isOnAllTodos,
-      journalService,
-      workbench,
-      todoDocs,
-      meetingDocs,
-    ]
+    [dateKey, day, docsService, journalService, workbench, meetingDocs, todoDoc]
   );
 
   return (
@@ -876,16 +848,16 @@ const FullCalendarDayCell = ({
               : 'Journal'}
           </span>
         ) : null}
-        {todoDocs.length > 0 ? (
+        {hasTodoSection ? (
           <span
             className={styles.fullCalendarAgendaItem}
             data-type="todo"
             onClick={e => {
               e.stopPropagation();
-              workbench.openDoc(todoDocs[0].id, { at: 'active' });
+              if (todoDoc) workbench.openDoc(todoDoc.id, { at: 'active' });
             }}
           >
-            {todoDocs.length > 1 ? `${todoDocs.length} Todos` : 'Todo'}
+            Todo
           </span>
         ) : null}
         {meetingDocs.length > 0 ? <MeetingDropdown docs={meetingDocs} /> : null}

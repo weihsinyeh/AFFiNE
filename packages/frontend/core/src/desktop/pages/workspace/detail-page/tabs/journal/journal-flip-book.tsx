@@ -1232,39 +1232,38 @@ const RightPageContent = ({ dateKey }: { dateKey: string }) => {
   );
 
   // Subscribe to both the journal-date membership list AND each doc's meta$
-  // title so that renaming a meeting/todo doc is immediately reflected here.
+  // title so that renaming a meeting doc is immediately reflected here.
   const docsTitleLiveData$ = useMemo(
     () =>
       LiveData.computed(get => {
         const docs = get(docsLiveData$);
-        const todoDocs: DocRecord[] = [];
         const meetingDocs: DocRecord[] = [];
+        let journalDoc: DocRecord | null = null;
+        let todoDoc: DocRecord | null = null;
         for (const doc of docs) {
           const title = get(doc.meta$)?.title ?? '';
-          if (title.startsWith('Todo ·')) todoDocs.push(doc);
-          else if (title.startsWith('Meeting ·')) meetingDocs.push(doc);
+          if (title.startsWith('Meeting ·')) meetingDocs.push(doc);
+          else if (title.startsWith('Todo ·')) todoDoc = doc;
+          else journalDoc = doc;
         }
-        return { todoDocs, meetingDocs };
+        return { meetingDocs, journalDoc, todoDoc };
       }),
     [docsLiveData$]
   );
-  const { todoDocs, meetingDocs } = useLiveData(docsTitleLiveData$) ?? {
-    todoDocs: [],
+  const { meetingDocs, todoDoc } = useLiveData(docsTitleLiveData$) ?? {
     meetingDocs: [],
+    todoDoc: null,
   };
 
+  // Show Tasks section when a Todo · DATE doc exists for this date
+  const hasTodoSection = todoDoc !== null;
+
   const handleCreateTodo = useCallback(() => {
-    const title = `Todo · ${dayjs(dateKey).format('MMM D, YYYY')}`;
+    const day = dayjs(dateKey);
     const newDoc = docsService.createDoc({
-      title,
-      docProps: {
-        paragraph: { type: 'h3', text: new Text("Today's Tasks") },
-      },
+      title: `Todo · ${day.format('MMM D, YYYY')}`,
     });
     journalService.setJournalDate(newDoc.id, dateKey);
-    // Todos surface via the journal's "Today's Tasks" section, not as a
-    // linked-doc paragraph — so we only ensure the journal exists, no link.
-    journalService.ensureJournalByDate(dateKey);
   }, [dateKey, docsService, journalService]);
 
   const handleCreateMeeting = useCallback(() => {
@@ -1316,9 +1315,9 @@ const RightPageContent = ({ dateKey }: { dateKey: string }) => {
         <div className={styles.flipBookSection}>
           <div className={styles.flipBookSectionHeader}>
             <span className={styles.flipBookSectionLabel} data-section="task">
-              ✅ Tasks
+              ✅ Todo
             </span>
-            {todoDocs.length === 0 && (
+            {!hasTodoSection && (
               <button
                 className={styles.flipBookSectionAddBtn}
                 onClick={e => {
@@ -1332,10 +1331,10 @@ const RightPageContent = ({ dateKey }: { dateKey: string }) => {
               </button>
             )}
           </div>
-          {todoDocs.length === 0 ? (
-            <span className={styles.flipBookPageEmpty}>No tasks</span>
+          {hasTodoSection && todoDoc ? (
+            <EditableTodoContent docRecord={todoDoc} />
           ) : (
-            <EditableTodoContent docRecord={todoDocs[0]} />
+            <span className={styles.flipBookPageEmpty}>No tasks</span>
           )}
         </div>
 

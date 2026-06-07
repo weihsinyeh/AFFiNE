@@ -91,7 +91,14 @@ const TaskRow = ({
   const toggleTask = useCallback(() => {
     const block = store?.getBlock(task.id);
     if (block) store.updateBlock(block.model, { checked: !task.checked });
-  }, [store, task.id, task.checked]);
+    if (!task.checked) {
+      // checking → mark completed
+      docRecord.setCustomProperty(statusKey, 'completed');
+    } else if (status === 'completed') {
+      // unchecking from completed → reset to not started
+      docRecord.setCustomProperty(statusKey, '');
+    }
+  }, [store, task.id, task.checked, docRecord, statusKey, status]);
 
   const startEdit = useCallback(() => {
     setEditingText(task.text);
@@ -481,18 +488,13 @@ const NewTodoRow = ({ onClose }: { onClose: () => void }) => {
       const newDoc = docsService.createDoc({
         title: `Todo · ${day.format('MMM D, YYYY')}`,
         docProps: {
-          paragraph: { type: 'h3', text: new Text("Today's Tasks") },
-          ...(text
-            ? {
-                onStoreLoad: (store: any, { noteId }: { noteId: string }) => {
-                  store.addBlock(
-                    'affine:list',
-                    { type: 'todo', text: new Text(text) },
-                    noteId
-                  );
-                },
-              }
-            : {}),
+          onStoreLoad: (store: any, { noteId }: { noteId: string }) => {
+            store.addBlock(
+              'affine:list',
+              { type: 'todo', text: new Text(text) },
+              noteId
+            );
+          },
         },
       });
       journalService.setJournalDate(newDoc.id, dateKey);

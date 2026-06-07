@@ -2,11 +2,9 @@ import { Checkbox } from '@affine/component';
 import { DocsService } from '@affine/core/modules/doc';
 import type { DocRecord } from '@affine/core/modules/doc/entities/record';
 import { JournalService } from '@affine/core/modules/journal';
-import { WorkbenchService } from '@affine/core/modules/workbench';
 import type { Store } from '@blocksuite/affine/store';
 import { Text } from '@blocksuite/affine/store';
-import { ExpandFullIcon } from '@blocksuite/icons/rc';
-import { useLiveData, useService } from '@toeverything/infra';
+import { LiveData, useLiveData, useService } from '@toeverything/infra';
 import dayjs from 'dayjs';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -18,29 +16,16 @@ type TaskItem = {
   checked: boolean;
 };
 
-const collectTasks = (store: Store): TaskItem[] => {
-  return (
-    store
-      .getBlocksByFlavour('affine:list')
-      .filter(block => {
-        const model = block.model as unknown as {
-          props?: { type?: string };
-        };
-        return model.props?.type === 'todo';
-      })
-      .map(block => {
-        const model = block.model as unknown as {
-          props?: { text?: { toString: () => string }; checked?: boolean };
-        };
-        return {
-          id: block.id,
-          text: model.props?.text?.toString() ?? '',
-          checked: !!model.props?.checked,
-        };
-      })
-      // hide empty placeholder items (e.g. from previously created todo docs)
-      .filter(task => task.text.trim().length > 0)
-  );
+const collectTasks = (store: any): TaskItem[] => {
+  return store
+    .getBlocksByFlavour('affine:list')
+    .filter((block: any) => block.model?.props?.type === 'todo')
+    .map((block: any) => ({
+      id: block.id,
+      text: block.model?.props?.text?.toString() ?? '',
+      checked: !!block.model?.props?.checked,
+    }))
+    .filter((task: TaskItem) => task.text.trim().length > 0);
 };
 
 const STATUS_OPTIONS = [
@@ -84,10 +69,19 @@ const TaskWithMeta = ({
   const deadline = properties[`custom:${deadlineKey}`] ?? '';
   const notes = properties[`custom:${notesKey}`] ?? '';
 
+  const handleToggle = useCallback(() => {
+    onToggle();
+    if (!task.checked) {
+      docRecord.setCustomProperty(statusKey, 'completed');
+    } else if (status === 'completed') {
+      docRecord.setCustomProperty(statusKey, '');
+    }
+  }, [onToggle, task.checked, docRecord, statusKey, status]);
+
   return (
     <div className={styles.taskWithMeta}>
       <label className={styles.taskRow}>
-        <Checkbox checked={task.checked} onChange={onToggle} />
+        <Checkbox checked={task.checked} onChange={handleToggle} />
         <span className={styles.taskText} data-checked={task.checked}>
           {task.text}
         </span>
@@ -140,79 +134,79 @@ const TaskWithMeta = ({
 };
 
 /**
- * "Today's Tasks" section shown on every journal doc, between the date
- * title and the Info table. It surfaces the day's `Todo · <date>` doc
- * (the same docs created by the calendar "New Todo" and the
- * "智慧增加todo list" chat mode): tasks can be checked off or added
- * inline, and the doc is created on first add when missing.
+ * "Today's Tasks" section shown on journal docs above the editor body.
+ * Tasks are stored in the shared `Todo · DATE` doc so they stay in sync
+ * with the All Todos page.
  */
 export const JournalTodayTasks = ({ page }: { page: Store }) => {
   const journalService = useService(JournalService);
   const docsService = useService(DocsService);
-  const workbench = useService(WorkbenchService).workbench;
 
   const dateStr = useLiveData(journalService.journalDate$(page.id));
-  const journalsByDate$ = useMemo(
-    () => journalService.journalsByDate$(dateStr ?? ''),
+
+  // DocRecord for this journal — used only to detect meeting docs
+  const docRecordLiveData$ = useMemo(
+    () => docsService.list.doc$(page.id),
+    [docsService, page.id]
+  );
+
+  const isMeetingDocLiveData$ = useMemo(
+    () =>
+      LiveData.computed(get => {
+        const record = get(docRecordLiveData$);
+        if (!record) return false;
+        return (get(record.meta$)?.title ?? '').startsWith('Meeting · ');
+      }),
+    [docRecordLiveData$]
+  );
+  const isMeetingDoc = useLiveData(isMeetingDocLiveData$) ?? false;
+
+  // Find the Todo · DATE doc for this journal date (shared with All Todos).
+  // Computed inside LiveData so the result is a stable DocRecord reference.
+  const todoDocRecord$ = useMemo(
+    () =>
+      LiveData.computed(get => {
+        if (!dateStr) return null;
+        const docs = get(journalService.journalsByDate$(dateStr)) ?? [];
+        return (
+          docs.find(doc =>
+            (get(doc.meta$)?.title ?? '').startsWith('Todo ·')
+          ) ?? null
+        );
+      }),
     [journalService, dateStr]
   );
-  const docRecords = useLiveData(journalsByDate$);
+  const todoDocRecord = useLiveData(todoDocRecord$);
 
-  const todoDocId = useMemo(() => {
-    return docRecords?.find(record =>
-      (record.meta$.value.title || '').startsWith('Todo ·')
-    )?.id;
-  }, [docRecords]);
-
-  // Todo/Meeting docs are journal-dated too (setJournalDate), but the
-  // section belongs on the actual journal doc only — a Todo doc already IS
-  // the task list, so rendering the section there would show it twice.
-  const isAuxiliaryDoc = useMemo(() => {
-    const record = docRecords?.find(r => r.id === page.id);
-    const title = record?.meta$.value.title || '';
-    return title.startsWith('Todo ·') || title.startsWith('Meeting ·');
-  }, [docRecords, page.id]);
-
-  // DocRecord for the todo doc — used for metadata fields
-  const todoDocRecord = useLiveData(
-    useMemo(
-      () => docsService.list.doc$(todoDocId ?? ''),
-      [docsService, todoDocId]
-    )
-  );
-
-  const [todoStore, setTodoStore] = useState<Store | null>(null);
-  useEffect(() => {
-    if (!todoDocId) {
-      setTodoStore(null);
-      return;
-    }
-    try {
-      const { doc, release } = docsService.open(todoDocId);
-      const store = doc.blockSuiteDoc;
-      store.load();
-      setTodoStore(store);
-      return () => {
-        setTodoStore(null);
-        release();
-      };
-    } catch {
-      setTodoStore(null);
-      return;
-    }
-  }, [todoDocId, docsService]);
-
+  // Open the Todo doc's store and listen for block changes
+  const [todoStore, setTodoStore] = useState<any>(null);
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+
   useEffect(() => {
-    if (!todoStore) {
+    if (!todoDocRecord) {
+      setTodoStore(null);
       setTasks([]);
       return;
     }
-    const read = () => setTasks(collectTasks(todoStore));
-    read();
-    const subscription = todoStore.slots.blockUpdated.subscribe(read);
-    return () => subscription.unsubscribe();
-  }, [todoStore]);
+    let cleanup: (() => void) | undefined;
+    try {
+      const { doc: openedDoc, release } = docsService.open(todoDocRecord.id);
+      const s = openedDoc.blockSuiteDoc;
+      s.load();
+      setTodoStore(s);
+      const read = () => setTasks(collectTasks(s));
+      read();
+      const sub = s.slots.blockUpdated.subscribe(read);
+      cleanup = () => {
+        sub.unsubscribe();
+        release();
+        setTodoStore(null);
+      };
+    } catch {
+      setTasks([]);
+    }
+    return () => cleanup?.();
+  }, [todoDocRecord, docsService]);
 
   const toggleTask = useCallback(
     (task: TaskItem) => {
@@ -229,60 +223,44 @@ export const JournalTodayTasks = ({ page }: { page: Store }) => {
     const text = draft.trim();
     if (!text || !dateStr) return;
     setDraft('');
+
     if (todoStore) {
       const note = todoStore.getBlocksByFlavour('affine:note')[0];
-      if (!note) return;
-      todoStore.addBlock(
-        'affine:list',
-        { type: 'todo', text: new Text(text) },
-        note.id
-      );
-      return;
-    }
-    // no Todo doc for this day yet — create one, mirroring the calendar's
-    // "New Todo" flow so it shows up as a Todo tag on the day cell
-    const day = dayjs(dateStr);
-    const newDoc = docsService.createDoc({
-      title: `Todo · ${day.format('MMM D, YYYY')}`,
-      docProps: {
-        paragraph: { type: 'h3', text: new Text("Today's Tasks") },
-        onStoreLoad: (store, { noteId }) => {
-          store.addBlock(
-            'affine:list',
-            { type: 'todo', text: new Text(text) },
-            noteId
-          );
+      if (note) {
+        todoStore.addBlock(
+          'affine:list',
+          { type: 'todo', text: new Text(text) },
+          note.id
+        );
+      }
+    } else {
+      // No Todo doc yet — create one (same format as All Todos page)
+      const day = dayjs(dateStr);
+      const newDoc = docsService.createDoc({
+        title: `Todo · ${day.format('MMM D, YYYY')}`,
+        docProps: {
+          onStoreLoad: (store: any, { noteId }: { noteId: string }) => {
+            store.addBlock(
+              'affine:list',
+              { type: 'todo', text: new Text(text) },
+              noteId
+            );
+          },
         },
-      },
-    });
-    // connected via setJournalDate only — this section already surfaces
-    // the todo, so no linked-doc paragraph is inserted into the body
-    journalService.setJournalDate(newDoc.id, dateStr);
+      });
+      journalService.setJournalDate(newDoc.id, dateStr);
+      journalService.ensureJournalByDate(dateStr);
+    }
   }, [draft, dateStr, todoStore, docsService, journalService]);
 
-  const openTodoDoc = useCallback(() => {
-    if (todoDocId) {
-      workbench.openDoc(todoDocId, { at: 'active' });
-    }
-  }, [todoDocId, workbench]);
-
-  if (!dateStr || isAuxiliaryDoc) return null;
+  if (!dateStr || isMeetingDoc) return null;
 
   return (
     <div className={styles.container} data-testid="journal-today-tasks">
       <div className={styles.section}>
         <div className={styles.card}>
           <div className={styles.header}>
-            <span className={styles.title}>Today&apos;s Tasks</span>
-            {todoDocId ? (
-              <div
-                className={styles.openButton}
-                onClick={openTodoDoc}
-                data-testid="journal-today-tasks-open"
-              >
-                <ExpandFullIcon width={16} height={16} />
-              </div>
-            ) : null}
+            <span className={styles.title}>Today&apos;s Todo</span>
           </div>
           {tasks.map(task =>
             todoDocRecord ? (
