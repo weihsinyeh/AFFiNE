@@ -853,6 +853,79 @@ export const meetingRenameInput = style({
   },
 });
 
+// ── Meeting detail editor (name + time/date range, all-day, repeat, place) ──
+
+export const meetingEditor = style({
+  minWidth: 252,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  padding: '8px 12px',
+});
+
+export const meetingEditorCheck = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  fontSize: cssVar('fontSm'),
+  color: cssVar('textPrimaryColor'),
+  cursor: 'pointer',
+  userSelect: 'none',
+});
+
+export const meetingEditorField = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+});
+
+export const meetingEditorLabel = style({
+  flexShrink: 0,
+  width: 32,
+  fontSize: cssVar('fontXs'),
+  color: cssVar('textSecondaryColor'),
+});
+
+export const meetingEditorRange = style({
+  flex: 1,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  minWidth: 0,
+  fontSize: cssVar('fontXs'),
+  color: cssVar('textSecondaryColor'),
+});
+
+export const meetingEditorControl = style({
+  flex: 1,
+  minWidth: 0,
+  boxSizing: 'border-box',
+  border: `1px solid ${cssVar('borderColor')}`,
+  borderRadius: 4,
+  padding: '4px 6px',
+  fontSize: cssVar('fontXs'),
+  color: cssVar('textPrimaryColor'),
+  background: cssVarV2.layer.background.primary,
+  outline: 'none',
+  selectors: {
+    '&:focus': { borderColor: cssVar('primaryColor') },
+  },
+});
+
+export const meetingEditorOpenBtn = style({
+  marginTop: 2,
+  padding: '5px 8px',
+  borderRadius: 4,
+  border: 'none',
+  background: cssVar('hoverColor'),
+  color: cssVar('textPrimaryColor'),
+  fontSize: cssVar('fontXs'),
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': { background: cssVarV2.layer.background.secondary },
+  },
+});
+
 export const fullCalendarAgendaMore = style({
   fontSize: 11,
   lineHeight: '16px',

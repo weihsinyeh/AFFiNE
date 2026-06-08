@@ -489,14 +489,200 @@ const JournalCalendarDateCell = ({
   );
 };
 
-// ── Meeting list dropdown with inline rename ──────────────────────────────
+// ── Meeting detail editor ───────────────────────────────────────────────────
 
-const MeetingDropdown = ({ docs }: { docs: DocRecord[] }) => {
-  const workbench = useService(WorkbenchService).workbench;
+/** Custom-property keys for a meeting doc's scheduling details. */
+const MEETING_PROP = {
+  allDay: 'meeting_allDay',
+  startDate: 'meeting_startDate',
+  endDate: 'meeting_endDate',
+  startTime: 'meeting_startTime',
+  endTime: 'meeting_endTime',
+  repeat: 'meeting_repeat',
+  location: 'meeting_location',
+};
+
+/** 00:00 … 23:30 in 30-minute steps for the time-range dropdowns. */
+const MEETING_TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
+  const h = String(Math.floor(i / 2)).padStart(2, '0');
+  return `${h}:${i % 2 ? '30' : '00'}`;
+});
+
+const MEETING_REPEAT_OPTIONS = [
+  { value: '', label: '不重複' },
+  { value: 'daily', label: '每天' },
+  { value: 'weekly', label: '每週' },
+  { value: 'monthly', label: '每月' },
+  { value: 'yearly', label: '每年' },
+];
+
+/**
+ * Editable meeting details, shown when a meeting name is clicked: rename plus
+ * all-day toggle, date range, time range (dropdowns), repeat, and location.
+ * Everything but the name is stored as custom properties on the meeting doc.
+ */
+const MeetingEditor = ({
+  doc,
+  dateKey,
+}: {
+  doc: DocRecord;
+  dateKey: string;
+}) => {
   const docsService = useService(DocsService);
+  const workbench = useService(WorkbenchService).workbench;
+  const props = useLiveData(doc.properties$) as Record<
+    string,
+    string | undefined
+  >;
+  const get = (key: string) => props[`custom:${key}`] ?? '';
+  const set = (key: string, value: string) => doc.setCustomProperty(key, value);
+
+  const cleanTitle = (useLiveData(doc.title$) ?? '').replace(/^Meeting · /, '');
+  const [name, setName] = useState(cleanTitle);
+  const nameFocused = useRef(false);
+  useEffect(() => {
+    if (!nameFocused.current) setName(cleanTitle);
+  }, [cleanTitle]);
+
+  const commitName = useCallback(() => {
+    const trimmed = name.trim();
+    if (trimmed) {
+      docsService
+        .changeDocTitle(doc.id, `Meeting · ${trimmed}`)
+        .catch(console.error);
+    }
+  }, [name, doc.id, docsService]);
+
+  const allDay = get(MEETING_PROP.allDay) === '1';
+
+  return (
+    <div
+      className={styles.meetingEditor}
+      onPointerDown={e => e.stopPropagation()}
+    >
+      <input
+        autoFocus
+        className={styles.meetingRenameInput}
+        value={name}
+        placeholder="會議名稱"
+        onChange={e => setName(e.target.value)}
+        onFocus={() => {
+          nameFocused.current = true;
+        }}
+        onBlur={() => {
+          nameFocused.current = false;
+          commitName();
+        }}
+        onKeyDown={e => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+      />
+      <label className={styles.meetingEditorCheck}>
+        <input
+          type="checkbox"
+          checked={allDay}
+          onChange={e => set(MEETING_PROP.allDay, e.target.checked ? '1' : '')}
+        />
+        全天
+      </label>
+      <div className={styles.meetingEditorField}>
+        <span className={styles.meetingEditorLabel}>日期</span>
+        <div className={styles.meetingEditorRange}>
+          <input
+            type="date"
+            className={styles.meetingEditorControl}
+            value={get(MEETING_PROP.startDate) || dateKey}
+            onChange={e => set(MEETING_PROP.startDate, e.target.value)}
+          />
+          <span>–</span>
+          <input
+            type="date"
+            className={styles.meetingEditorControl}
+            value={
+              get(MEETING_PROP.endDate) ||
+              get(MEETING_PROP.startDate) ||
+              dateKey
+            }
+            onChange={e => set(MEETING_PROP.endDate, e.target.value)}
+          />
+        </div>
+      </div>
+      {!allDay ? (
+        <div className={styles.meetingEditorField}>
+          <span className={styles.meetingEditorLabel}>時間</span>
+          <div className={styles.meetingEditorRange}>
+            <select
+              className={styles.meetingEditorControl}
+              value={get(MEETING_PROP.startTime)}
+              onChange={e => set(MEETING_PROP.startTime, e.target.value)}
+            >
+              <option value="">--:--</option>
+              {MEETING_TIME_OPTIONS.map(t => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+            <span>–</span>
+            <select
+              className={styles.meetingEditorControl}
+              value={get(MEETING_PROP.endTime)}
+              onChange={e => set(MEETING_PROP.endTime, e.target.value)}
+            >
+              <option value="">--:--</option>
+              {MEETING_TIME_OPTIONS.map(t => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      ) : null}
+      <div className={styles.meetingEditorField}>
+        <span className={styles.meetingEditorLabel}>重複</span>
+        <select
+          className={styles.meetingEditorControl}
+          value={get(MEETING_PROP.repeat)}
+          onChange={e => set(MEETING_PROP.repeat, e.target.value)}
+        >
+          {MEETING_REPEAT_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className={styles.meetingEditorField}>
+        <span className={styles.meetingEditorLabel}>地點</span>
+        <input
+          className={styles.meetingEditorControl}
+          value={get(MEETING_PROP.location)}
+          placeholder="地點…"
+          onChange={e => set(MEETING_PROP.location, e.target.value)}
+        />
+      </div>
+      <button
+        className={styles.meetingEditorOpenBtn}
+        onClick={() => workbench.openDoc(doc.id, { at: 'active' })}
+      >
+        開啟會議筆記
+      </button>
+    </div>
+  );
+};
+
+// ── Meeting list dropdown with inline editor ──────────────────────────────
+
+const MeetingDropdown = ({
+  docs,
+  dateKey,
+}: {
+  docs: DocRecord[];
+  dateKey: string;
+}) => {
   const [open, setOpen] = useState(false);
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Reactive: re-render when any meeting title changes
   const docTitlesLiveData$ = useMemo(
@@ -513,38 +699,30 @@ const MeetingDropdown = ({ docs }: { docs: DocRecord[] }) => {
   );
   const docTitles = useLiveData(docTitlesLiveData$) ?? {};
 
-  const handleStartRename = useCallback((doc: DocRecord) => {
-    setRenamingId(doc.id);
-    setDraft((doc.meta$.value?.title ?? '').replace(/^Meeting · /, ''));
-  }, []);
-
-  const handleCommitRename = useCallback(
-    (doc: DocRecord) => {
-      const trimmed = draft.trim();
-      if (trimmed)
-        docsService
-          .changeDocTitle(doc.id, `Meeting · ${trimmed}`)
-          .catch(console.error);
-      setRenamingId(null);
-    },
-    [draft, docsService]
-  );
-
+  // Single meeting: the name itself opens the detail editor popover.
   if (docs.length === 1) {
+    const doc = docs[0];
     return (
-      <span
-        className={styles.fullCalendarAgendaItem}
-        data-type="meeting"
-        onClick={e => {
-          e.stopPropagation();
-          workbench.openDoc(docs[0].id, { at: 'active' });
-        }}
+      <Menu
+        rootOptions={{ open, onOpenChange: setOpen }}
+        items={
+          <div className={styles.meetingDropdownContent}>
+            <MeetingEditor doc={doc} dateKey={dateKey} />
+          </div>
+        }
       >
-        Meeting
-      </span>
+        <span
+          className={styles.fullCalendarAgendaItem}
+          data-type="meeting"
+          onClick={e => e.stopPropagation()}
+        >
+          {docTitles[doc.id] ?? 'Untitled'}
+        </span>
+      </Menu>
     );
   }
 
+  // Multiple meetings: list them; clicking a name expands its editor inline.
   return (
     <Menu
       rootOptions={{ open, onOpenChange: setOpen }}
@@ -552,44 +730,26 @@ const MeetingDropdown = ({ docs }: { docs: DocRecord[] }) => {
         <div className={styles.meetingDropdownContent}>
           {docs.map(doc => {
             const title = docTitles[doc.id] ?? 'Untitled';
-            if (renamingId === doc.id) {
-              return (
-                <div
-                  key={doc.id}
-                  className={styles.meetingRenameRow}
-                  onPointerDown={e => e.stopPropagation()}
-                >
-                  <input
-                    autoFocus
-                    className={styles.meetingRenameInput}
-                    value={draft}
-                    onChange={e => setDraft(e.target.value)}
-                    onBlur={() => handleCommitRename(doc)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') handleCommitRename(doc);
-                      if (e.key === 'Escape') {
-                        e.stopPropagation(); // keep dropdown open
-                        setRenamingId(null);
-                      }
-                    }}
-                  />
-                </div>
-              );
-            }
+            const expanded = expandedId === doc.id;
             return (
-              <div key={doc.id} className={styles.meetingRow}>
-                <button
-                  className={styles.meetingNavBtn}
-                  onClick={() => {
-                    workbench.openDoc(doc.id, { at: 'active' });
-                    setOpen(false);
-                  }}
-                >
-                  {title}
-                </button>
-                <IconButton size={16} onClick={() => handleStartRename(doc)}>
-                  <EditIcon />
-                </IconButton>
+              <div key={doc.id}>
+                <div className={styles.meetingRow}>
+                  <button
+                    className={styles.meetingNavBtn}
+                    onClick={() => setExpandedId(expanded ? null : doc.id)}
+                  >
+                    {title}
+                  </button>
+                  <IconButton
+                    size={16}
+                    onClick={() => setExpandedId(expanded ? null : doc.id)}
+                  >
+                    <EditIcon />
+                  </IconButton>
+                </div>
+                {expanded ? (
+                  <MeetingEditor doc={doc} dateKey={dateKey} />
+                ) : null}
               </div>
             );
           })}
@@ -838,7 +998,9 @@ const FullCalendarDayCell = ({
             Todo
           </span>
         ) : null}
-        {meetingDocs.length > 0 ? <MeetingDropdown docs={meetingDocs} /> : null}
+        {meetingDocs.length > 0 ? (
+          <MeetingDropdown docs={meetingDocs} dateKey={dateKey} />
+        ) : null}
         {visibleEvents.map(event => (
           <span
             key={event.id}
