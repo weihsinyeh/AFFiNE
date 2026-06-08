@@ -16,6 +16,7 @@ import {
   ViewBody,
   ViewHeader,
   ViewIcon,
+  ViewService,
   ViewTitle,
   WorkbenchService,
 } from '@affine/core/modules/workbench';
@@ -133,10 +134,15 @@ const EntryCard = ({
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
+const isSortMode = (value: string | null): value is SortMode =>
+  !!value && SORT_OPTIONS.some(option => option.value === value);
+
 const AllJournalsPage = () => {
   const docsService = useService(DocsService);
   const globalState = useService(GlobalStateService).globalState;
   const allDocs = useLiveData(docsService.list.docs$);
+  const view = useService(ViewService).view;
+  const location = useLiveData(view.location$);
 
   const templates$ = useMemo(
     () =>
@@ -150,8 +156,25 @@ const AllJournalsPage = () => {
   );
   const templates = useLiveData(templates$) ?? DEFAULT_JOURNAL_TEMPLATES;
 
-  const [selectedId, setSelectedId] = useState<string>(ALL);
-  const [sortMode, setSortMode] = useState<SortMode>('date-desc');
+  // Seed the category filter / sort from the URL query
+  // (`?category=travel&sort=stars-desc`) so "過往經驗參考" can deep-link here.
+  const [selectedId, setSelectedId] = useState<string>(
+    () =>
+      new URLSearchParams(view.location$.value.search).get('category') || ALL
+  );
+  const [sortMode, setSortMode] = useState<SortMode>(() => {
+    const sort = new URLSearchParams(view.location$.value.search).get('sort');
+    return isSortMode(sort) ? sort : 'date-desc';
+  });
+
+  // Re-apply when navigated here again with new params while already mounted.
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const category = params.get('category');
+    const sort = params.get('sort');
+    if (category) setSelectedId(category);
+    if (isSortMode(sort)) setSortMode(sort);
+  }, [location.search]);
 
   const journalDocs = useMemo(
     () =>

@@ -24,8 +24,9 @@ import {
 import { JournalService } from '@affine/core/modules/journal';
 import { GlobalStateService } from '@affine/core/modules/storage';
 import { TemplateDocService } from '@affine/core/modules/template-doc';
+import { WorkbenchService } from '@affine/core/modules/workbench';
 import type { Store } from '@blocksuite/affine/store';
-import { AiIcon } from '@blocksuite/icons/rc';
+import { AiIcon, HistoryIcon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import dayjs from 'dayjs';
@@ -351,8 +352,33 @@ const JournalSmartPlan = ({ doc }: { doc: Store }) => {
   );
 };
 
+// "過往經驗參考": jump to All Journals pre-filtered to one diary category and
+// sorted by a rating field (highest first = best recommendations). The target
+// page reads these from the URL query.
+const PAST_EXPERIENCE_OPTIONS = [
+  {
+    label: '✈️ 旅遊日記（依星等推薦）',
+    category: 'travel',
+    sort: 'stars-desc',
+  },
+  { label: '✈️ 旅遊日記（依心情推薦）', category: 'travel', sort: 'mood-desc' },
+  {
+    label: '✈️ 旅遊日記（依天氣推薦）',
+    category: 'travel',
+    sort: 'weather-desc',
+  },
+  { label: '🍜 美食日記（依星等推薦）', category: 'food', sort: 'stars-desc' },
+  { label: '🍜 美食日記（依心情推薦）', category: 'food', sort: 'mood-desc' },
+  {
+    label: '🍜 美食日記（依天氣推薦）',
+    category: 'food',
+    sort: 'weather-desc',
+  },
+] as const;
+
 const StarterBarNotEmpty = ({ doc }: { doc: Store }) => {
   const globalState = useService(GlobalStateService).globalState;
+  const workbench = useService(WorkbenchService).workbench;
   const enableAI = useEnableAI();
   const [generating, setGenerating] = useState(false);
 
@@ -451,6 +477,32 @@ const StarterBarNotEmpty = ({ doc }: { doc: Store }) => {
               icon={<AiIcon className={styles.aiIcon} />}
               text={generating ? 'AI 推薦生成中...' : 'AI智慧推薦'}
               active={generating}
+            />
+          </Menu>
+          <Menu
+            items={
+              <>
+                {PAST_EXPERIENCE_OPTIONS.map(option => (
+                  <MenuItem
+                    key={`${option.category}-${option.sort}`}
+                    onSelect={() =>
+                      workbench.open(
+                        `/all-journals?category=${option.category}&sort=${option.sort}`,
+                        { at: 'active' }
+                      )
+                    }
+                    data-testid={`past-experience-${option.category}-${option.sort}`}
+                  >
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </>
+            }
+          >
+            <Badge
+              data-testid="past-experience-badge"
+              icon={<HistoryIcon className={styles.aiIcon} />}
+              text="過往經驗參考"
             />
           </Menu>
         </ul>
