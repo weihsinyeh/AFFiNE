@@ -1049,11 +1049,13 @@ const FlipBookEntry = ({
     if (!focusedRef.current) setText(textContent);
   }, [textContent]);
 
-  const handleFile = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      e.target.value = '';
-      if (!file || !store) return;
+  const [dragOver, setDragOver] = useState(false);
+
+  // Core upload: store the blob and append an affine:image block at the end of
+  // this entry. Shared by the file-picker button and drag-and-drop.
+  const uploadFile = useCallback(
+    async (file: File) => {
+      if (!file || !file.type.startsWith('image/') || !store) return;
       try {
         const sourceId = await store.blobSync.set(file);
         const dims = await new Promise<{ width: number; height: number }>(
@@ -1095,6 +1097,29 @@ const FlipBookEntry = ({
     },
     [store, entry.bodyBlockIds, entry.headingBlockId]
   );
+
+  const handleFile = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (file) uploadFile(file).catch(() => {});
+    },
+    [uploadFile]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      const files = Array.from(e.dataTransfer?.files ?? []).filter(f =>
+        f.type.startsWith('image/')
+      );
+      if (files.length === 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOver(false);
+      for (const file of files) uploadFile(file).catch(() => {});
+    },
+    [uploadFile]
+  );
   useEffect(() => {
     if (!focusedRef.current) setHeading(entry.title);
   }, [entry.title]);
@@ -1114,7 +1139,23 @@ const FlipBookEntry = ({
   }, [isEditingRef]);
 
   return (
-    <div className={styles.flipBookEntry}>
+    <div
+      className={
+        dragOver
+          ? `${styles.flipBookEntry} ${styles.flipBookEntryDragOver}`
+          : styles.flipBookEntry
+      }
+      onDragOver={e => {
+        // Only react to file drags (not text selection / page-flip gestures).
+        if (Array.from(e.dataTransfer?.types ?? []).includes('Files')) {
+          e.preventDefault();
+          e.stopPropagation();
+          setDragOver(true);
+        }
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={handleDrop}
+    >
       {entry.headingBlockId ? (
         <input
           className={styles.flipBookEntryHeading}
@@ -1178,7 +1219,7 @@ const FlipBookEntry = ({
         onClick={() => fileInputRef.current?.click()}
         onMouseDown={e => e.stopPropagation()}
       >
-        📷 上傳照片
+        📷 拖曳或點擊上傳照片
       </button>
     </div>
   );

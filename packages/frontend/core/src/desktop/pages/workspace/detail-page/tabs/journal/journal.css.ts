@@ -1439,6 +1439,14 @@ export const flipBookEntry = style({
   scrollMarginTop: 4,
 });
 
+// Highlight an entry while an image file is dragged over it.
+export const flipBookEntryDragOver = style({
+  outline: `2px dashed ${cssVarV2.calendar.blue}`,
+  outlineOffset: 3,
+  borderRadius: 6,
+  background: 'rgba(0,0,0,0.03)',
+});
+
 export const flipBookEntryHeading = style({
   display: 'block',
   width: '100%',
