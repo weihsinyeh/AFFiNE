@@ -103,6 +103,27 @@ const AllTodosButton = () => {
   );
 };
 
+const AllJournalsButton = () => {
+  const { workbenchService } = useServices({ WorkbenchService });
+  const workbench = workbenchService.workbench;
+  const active = useLiveData(
+    workbench.location$.selector(
+      location => location.pathname === '/all-journals'
+    )
+  );
+
+  return (
+    <MenuLinkItem
+      icon={<JournalIcon />}
+      active={active}
+      to={'/all-journals'}
+      data-testid="slider-bar-all-journals-button"
+    >
+      <span>All Journals</span>
+    </MenuLinkItem>
+  );
+};
+
 const AIChatButton = () => {
   const t = useI18n();
   const featureFlagService = useService(FeatureFlagService);
@@ -229,6 +250,7 @@ export const RootAppSidebar = memo((): ReactElement => {
         <AllDocsButton />
         <AllTodosButton />
         <AppSidebarJournalButton />
+        <AllJournalsButton />
         {sessionStatus === 'authenticated' && <NotificationButton />}
         <AIChatButton />
         <MenuItem
