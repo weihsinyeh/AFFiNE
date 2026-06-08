@@ -108,6 +108,41 @@ type TemplateSegment = {
 };
 
 /**
+ * Heading text of a block, only if it's a heading paragraph. Heading type
+ * lives on `props.type` — the model has no direct `type` getter (unlike
+ * `text`), so reading `block.type` would be undefined.
+ */
+function paragraphHeadingText(block: BodyBlock): string | null {
+  if (block.flavour !== 'affine:paragraph') return null;
+  const type = (block as unknown as { props?: { type?: string } }).props?.type;
+  if (typeof type !== 'string' || !type.startsWith('h')) return null;
+  return block.text?.toString() ?? '';
+}
+
+/**
+ * Match a heading's text to the template it belongs to. Tolerates user edits
+ * that keep the template label as a prefix (e.g. editing "📚 學習日記" into
+ * "📚 學習日記 · React") so a renamed entry stays in its category. When
+ * several labels match, the longest (most specific) wins.
+ */
+function resolveTemplateRank(
+  headingText: string,
+  templates: StoredJournalTemplate[]
+): { rank: number; label: string; templateId: string } | undefined {
+  const text = headingText.trim();
+  let best: { rank: number; label: string; templateId: string } | undefined;
+  templates.forEach((template, index) => {
+    const label = template.label.trim();
+    if (!label) return;
+    // startsWith also covers an exact match. Longest matching label wins.
+    if (text.startsWith(label) && (!best || label.length > best.label.length)) {
+      best = { rank: index, label, templateId: template.id };
+    }
+  });
+  return best;
+}
+
+/**
  * Re-group and sort the journal body so template sections are clustered by
  * type and ordered the same way the template bar lists them (學習 → 旅遊 →
  * 美食 → 心情 by default). Each instance keeps its own blocks — including
@@ -132,32 +167,10 @@ export function reorderJournalTemplates(
   const children = noteModel.children ?? [];
   if (children.length === 0) return false;
 
-  // Expected heading text for each template → its position in the bar.
-  const rankByHeading = new Map<string, number>();
-  templates.forEach((template, index) => {
-    const [first] = parseTemplateContent(template.content);
-    if (
-      first &&
-      first.flavour === 'affine:paragraph' &&
-      typeof first.type === 'string' &&
-      first.type.startsWith('h')
-    ) {
-      rankByHeading.set(first.text.trim(), index);
-    }
-  });
-  if (rankByHeading.size === 0) return false;
-
   const headingRank = (block: BodyBlock): number | null => {
-    if (block.flavour !== 'affine:paragraph') return null;
-    // Heading type lives on `props.type` — the model has no direct `type`
-    // getter (unlike `text`), so reading `block.type` would be undefined.
-    const type = (block as unknown as { props?: { type?: string } }).props
-      ?.type;
-    if (typeof type !== 'string' || !type.startsWith('h')) {
-      return null;
-    }
-    const text = block.text?.toString().trim() ?? '';
-    return rankByHeading.has(text) ? (rankByHeading.get(text) as number) : null;
+    const headingText = paragraphHeadingText(block);
+    if (headingText === null) return null;
+    return resolveTemplateRank(headingText, templates)?.rank ?? null;
   };
 
   // Split the body into a preamble (anything before the first template) and
@@ -217,6 +230,91 @@ export function reorderJournalTemplates(
   }
 
   return true;
+}
+
+/** One journal entry as seen by the flip book: a template instance (or the
+ *  free-form preamble) with its heading and body blocks. */
+export type JournalSegment = {
+  /** Template id this entry belongs to, or null for free-form preamble text. */
+  templateId: string | null;
+  /** Category label (e.g. "📚 學習日記"); empty for the preamble. */
+  label: string;
+  /** Heading text shown on hover; empty for the preamble. */
+  title: string;
+  /** Position used for ordering categories; -1 for the preamble. */
+  rank: number;
+  /** Block id of the heading paragraph, or null for the preamble. */
+  headingBlockId: string | null;
+  /** Block ids of the entry body (everything under the heading). */
+  bodyBlockIds: string[];
+  /** Body text joined by newlines — what the flip book textarea shows. */
+  bodyText: string;
+};
+
+/**
+ * Read-only companion to {@link reorderJournalTemplates}: split the journal
+ * body into the same template instances the flip book navigates. Returns the
+ * preamble first (if any) followed by each template instance in document
+ * order. Heading detection mirrors the reorder logic (`props.type`).
+ */
+export function splitJournalSegments(
+  page: Store,
+  templates: StoredJournalTemplate[]
+): JournalSegment[] {
+  const note = page.getBlocksByFlavour('affine:note')[0];
+  if (!note) return [];
+  const children =
+    (note.model as unknown as { children?: BodyBlock[] }).children ?? [];
+
+  const matchHeading = (block: BodyBlock) => {
+    const headingText = paragraphHeadingText(block);
+    if (headingText === null) return undefined;
+    return resolveTemplateRank(headingText, templates);
+  };
+
+  const appendBody = (seg: JournalSegment, block: BodyBlock) => {
+    seg.bodyBlockIds.push(block.id);
+    const text = block.text?.toString() ?? '';
+    seg.bodyText += seg.bodyBlockIds.length > 1 ? `\n${text}` : text;
+  };
+
+  let preamble: JournalSegment | null = null;
+  let current: JournalSegment | null = null;
+  const segments: JournalSegment[] = [];
+
+  for (const child of children) {
+    if (child.flavour === 'affine:divider') continue;
+    const info = matchHeading(child);
+    if (info) {
+      current = {
+        templateId: info.templateId,
+        label: info.label,
+        title: child.text?.toString().trim() || info.label,
+        rank: info.rank,
+        headingBlockId: child.id,
+        bodyBlockIds: [],
+        bodyText: '',
+      };
+      segments.push(current);
+    } else if (current) {
+      appendBody(current, child);
+    } else {
+      if (!preamble) {
+        preamble = {
+          templateId: null,
+          label: '',
+          title: '',
+          rank: -1,
+          headingBlockId: null,
+          bodyBlockIds: [],
+          bodyText: '',
+        };
+      }
+      appendBody(preamble, child);
+    }
+  }
+
+  return preamble ? [preamble, ...segments] : segments;
 }
 
 export const DEFAULT_JOURNAL_TEMPLATES: StoredJournalTemplate[] = [

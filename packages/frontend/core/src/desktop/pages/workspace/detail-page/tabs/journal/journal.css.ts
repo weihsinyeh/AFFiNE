@@ -1181,6 +1181,176 @@ export const flipBookPageEmpty = style({
   lineHeight: 1.6,
 });
 
+// ── Left page: template category tabs + entry navigation ────────────────────
+
+export const flipBookCategoryBar = style({
+  flexShrink: 0,
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 4,
+  marginBottom: 6,
+});
+
+export const flipBookCategoryTab = style({
+  font: 'inherit',
+  fontSize: '0.82em',
+  lineHeight: 1.2,
+  padding: '2px 8px',
+  borderRadius: 999,
+  border: `1px solid ${cssVar('borderColor')}`,
+  background: 'transparent',
+  color: flipBookTextMuted,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  maxWidth: 130,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  selectors: {
+    '&:hover': { background: 'rgba(0,0,0,0.04)' },
+    '&[data-active="true"]': {
+      background: cssVarV2.calendar.blue,
+      borderColor: cssVarV2.calendar.blue,
+      color: '#fff',
+      fontWeight: 600,
+    },
+  },
+});
+
+export const flipBookLeftBody = style({
+  flex: '1 1 auto',
+  minHeight: 0,
+  display: 'flex',
+  flexDirection: 'row',
+  gap: 6,
+  overflow: 'hidden',
+});
+
+export const flipBookBarIndex = style({
+  flexShrink: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+  paddingTop: 3,
+  // Keep visible (no scroll) so the hover tooltip can overflow the rail.
+  overflow: 'visible',
+});
+
+export const flipBookBar = style({
+  position: 'relative',
+  width: 24,
+  height: 12,
+  flexShrink: 0,
+  border: 'none',
+  borderRadius: 3,
+  padding: 0,
+  background: 'rgba(0,0,0,0.16)',
+  cursor: 'pointer',
+  transition: 'background 0.15s, width 0.15s, transform 0.15s',
+  selectors: {
+    '&:hover': {
+      background: cssVarV2.calendar.blue,
+      transform: 'scaleY(1.15)',
+    },
+    '&[data-active="true"]': {
+      background: cssVarV2.calendar.blue,
+      width: 30,
+    },
+  },
+});
+
+export const flipBookBarTip = style({
+  position: 'absolute',
+  left: 'calc(100% + 6px)',
+  top: '50%',
+  transform: 'translateY(-50%) translateX(-4px)',
+  opacity: 0,
+  pointerEvents: 'none',
+  whiteSpace: 'nowrap',
+  background: 'rgba(40,36,28,0.95)',
+  color: '#fff',
+  fontSize: '0.78em',
+  lineHeight: 1.2,
+  padding: '3px 7px',
+  borderRadius: 4,
+  zIndex: 10,
+  boxShadow: '0 2px 6px rgba(0,0,0,0.2)',
+  transition: 'opacity 0.15s, transform 0.15s',
+  selectors: {
+    [`${flipBookBar}:hover &`]: {
+      opacity: 1,
+      transform: 'translateY(-50%) translateX(0)',
+    },
+  },
+});
+
+export const flipBookEntries = style({
+  // `position: relative` makes each entry's offsetTop measured against this
+  // scroller, so the bar index can jump to and track the right entry.
+  position: 'relative',
+  flex: '1 1 auto',
+  minWidth: 0,
+  minHeight: 0,
+  overflowY: 'auto',
+  overflowX: 'hidden',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 10,
+  paddingRight: 4,
+});
+
+export const flipBookEntry = style({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 3,
+  scrollMarginTop: 4,
+});
+
+export const flipBookEntryHeading = style({
+  display: 'block',
+  width: '100%',
+  fontSize: '0.95em',
+  fontWeight: 700,
+  lineHeight: 1.3,
+  color: flipBookTextPrimary,
+  fontFamily: 'inherit',
+  paddingLeft: 5,
+  paddingTop: 0,
+  paddingBottom: 0,
+  margin: 0,
+  border: 'none',
+  borderLeft: `2.5px solid ${cssVarV2.calendar.blue}`,
+  outline: 'none',
+  background: 'transparent',
+  selectors: {
+    '&:hover': { background: 'rgba(0,0,0,0.03)' },
+    '&:focus': { background: 'rgba(0,0,0,0.05)' },
+  },
+});
+
+export const flipBookEntryTextarea = style({
+  display: 'block',
+  width: '100%',
+  resize: 'none',
+  border: 'none',
+  outline: 'none',
+  background: 'transparent',
+  fontSize: '1em',
+  lineHeight: 1.6,
+  color: flipBookTextPrimary,
+  fontFamily: 'inherit',
+  padding: 0,
+  margin: 0,
+  overflow: 'hidden',
+  wordBreak: 'break-word',
+  selectors: {
+    '&::placeholder': {
+      color: flipBookTextMuted,
+      fontStyle: 'italic',
+    },
+  },
+});
+
 export const flipBookPageSections = style({
   flex: '1 1 auto',
   display: 'flex',

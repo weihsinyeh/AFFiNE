@@ -1,6 +1,14 @@
 import { IconButton } from '@affine/component';
+import {
+  DEFAULT_JOURNAL_TEMPLATES,
+  JOURNAL_TEMPLATES_STORAGE_KEY,
+  type JournalSegment,
+  splitJournalSegments,
+  type StoredJournalTemplate,
+} from '@affine/core/blocksuite/block-suite-editor/journal-templates';
 import { type DocRecord, DocsService } from '@affine/core/modules/doc';
 import { JournalService } from '@affine/core/modules/journal';
+import { GlobalStateService } from '@affine/core/modules/storage';
 import { Text } from '@blocksuite/affine/store';
 import {
   ArrowLeftSmallIcon,
@@ -868,11 +876,174 @@ const makeReadFn = (
   };
 };
 
-// ── Left page: journal text ────────────────────────────────────────────────
+// ── Left page: journal entries, grouped by template ─────────────────────────
+
+const ALL_CATEGORY = '__all__';
+
+/**
+ * Write an entry's edited body text back into its blocks, preserving block
+ * structure line-for-line: each line overwrites the matching block in place,
+ * removed lines delete their block, added lines append fresh paragraphs after
+ * the entry. The heading block is never touched, so categories stay intact.
+ */
+const writeEntryBody = (store: any, entry: JournalSegment, text: string) => {
+  if (!store) return;
+  try {
+    const note = store.getBlocksByFlavour('affine:note')[0];
+    if (!note) return;
+    const lines = text.split('\n');
+    const blocks = entry.bodyBlockIds
+      .map((id: string) => store.getBlock(id)?.model)
+      .filter(Boolean);
+
+    for (let i = 0; i < blocks.length; i++) {
+      const t = (blocks[i] as { text?: Text }).text;
+      if (!t) continue;
+      t.delete(0, t.length);
+      if (i < lines.length && lines[i]) t.insert(lines[i], 0);
+    }
+    if (blocks.length > lines.length) {
+      for (let i = lines.length; i < blocks.length; i++) {
+        store.deleteBlock(blocks[i]);
+      }
+    } else if (lines.length > blocks.length) {
+      const childIds: string[] =
+        (note.model as { children?: { id: string }[] }).children?.map(
+          c => c.id
+        ) ?? [];
+      const anchorId = blocks.length
+        ? blocks[blocks.length - 1].id
+        : entry.headingBlockId;
+      let insertAt =
+        (anchorId ? childIds.indexOf(anchorId) : childIds.length - 1) + 1;
+      for (let i = blocks.length; i < lines.length; i++) {
+        store.addBlock(
+          'affine:paragraph',
+          { text: new Text(lines[i] ?? '') },
+          note.id,
+          insertAt++
+        );
+      }
+    }
+  } catch (e) {
+    console.error('flip book entry sync failed', e);
+  }
+};
+
+/** Overwrite a single block's text (used for the editable entry heading). */
+const writeBlockText = (store: any, blockId: string, text: string) => {
+  if (!store) return;
+  try {
+    const t = (store.getBlock(blockId)?.model as { text?: Text } | undefined)
+      ?.text;
+    if (t) {
+      t.delete(0, t.length);
+      if (text) t.insert(text, 0);
+    }
+  } catch (e) {
+    console.error('flip book heading sync failed', e);
+  }
+};
+
+/** One editable entry (a template instance, or the free-form preamble). */
+const FlipBookEntry = ({
+  store,
+  entry,
+  isEditingRef,
+}: {
+  store: any;
+  entry: JournalSegment;
+  isEditingRef: React.RefObject<boolean>;
+}) => {
+  const [text, setText] = useState(entry.bodyText);
+  const [heading, setHeading] = useState(entry.title);
+  const focusedRef = useRef(false);
+  const taRef = useRef<HTMLTextAreaElement>(null);
+
+  // Resync from the doc when it changes elsewhere, unless editing here.
+  useEffect(() => {
+    if (!focusedRef.current) setText(entry.bodyText);
+  }, [entry.bodyText]);
+  useEffect(() => {
+    if (!focusedRef.current) setHeading(entry.title);
+  }, [entry.title]);
+
+  // Auto-grow so the outer container — not each textarea — owns the scroll.
+  useEffect(() => {
+    const el = taRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    }
+  }, [text]);
+
+  const onFocus = useCallback(() => {
+    focusedRef.current = true;
+    isEditingRef.current = true;
+  }, [isEditingRef]);
+
+  return (
+    <div className={styles.flipBookEntry}>
+      {entry.headingBlockId ? (
+        <input
+          className={styles.flipBookEntryHeading}
+          value={heading}
+          onChange={e => setHeading(e.target.value)}
+          onFocus={onFocus}
+          onBlur={e => {
+            focusedRef.current = false;
+            isEditingRef.current = false;
+            // Keep the template label as a prefix so the entry stays grouped.
+            if (entry.headingBlockId) {
+              writeBlockText(store, entry.headingBlockId, e.target.value);
+            }
+          }}
+          onMouseDown={e => e.stopPropagation()}
+          spellCheck={false}
+        />
+      ) : null}
+      <textarea
+        ref={taRef}
+        className={styles.flipBookEntryTextarea}
+        value={text}
+        rows={1}
+        onChange={e => setText(e.target.value)}
+        onFocus={onFocus}
+        onBlur={e => {
+          focusedRef.current = false;
+          isEditingRef.current = false;
+          // Write back once, on blur: during editing isEditingRef suppresses
+          // re-reads, so the entry's block ids stay valid and we never apply a
+          // stale-id write twice (which would duplicate blocks).
+          writeEntryBody(store, entry, e.target.value);
+        }}
+        placeholder="…"
+        onMouseDown={e => e.stopPropagation()}
+        onTouchStart={e => e.stopPropagation()}
+        spellCheck={false}
+      />
+    </div>
+  );
+};
 
 const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
   const journalService = useService(JournalService);
   const docsService = useService(DocsService);
+  const globalState = useService(GlobalStateService).globalState;
+
+  const templates$ = useMemo(
+    () =>
+      LiveData.from(
+        globalState.watch<StoredJournalTemplate[]>(
+          JOURNAL_TEMPLATES_STORAGE_KEY
+        ),
+        undefined
+      ),
+    [globalState]
+  );
+  const templates = useLiveData(templates$) ?? DEFAULT_JOURNAL_TEMPLATES;
+  const templatesRef = useRef(templates);
+  templatesRef.current = templates;
 
   const allDocs = useLiveData(
     useMemo(
@@ -885,14 +1056,16 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
     [allDocs, dateKey]
   );
 
-  const [content, setContent] = useState('');
+  const [segments, setSegments] = useState<JournalSegment[]>([]);
+  const [emptyContent, setEmptyContent] = useState('');
   const storeRef = useRef<any>(null);
   const isEditingRef = useRef(false);
   const pendingWriteRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!journalDoc) {
-      setContent('');
+      setSegments([]);
+      setEmptyContent('');
       storeRef.current = null;
       return;
     }
@@ -920,7 +1093,10 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
         }
       }
 
-      const read = makeReadFn(store, isEditingRef, setContent);
+      const read = () => {
+        if (isEditingRef.current) return;
+        setSegments(splitJournalSegments(store, templatesRef.current));
+      };
       read();
       const sub = store.slots.blockUpdated.subscribe(read);
       cleanup = () => {
@@ -929,12 +1105,13 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
         storeRef.current = null;
       };
     } catch {
-      setContent('');
+      setSegments([]);
     }
     return () => cleanup?.();
   }, [journalDoc, docsService]);
 
-  const syncContent = useCallback(
+  // Fallback editor for a day that has no entries yet — typing creates the doc.
+  const syncEmpty = useCallback(
     (newContent: string) => {
       const store = storeRef.current;
       if (!store) {
@@ -944,19 +1121,14 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
         return;
       }
       try {
-        const paragraphs = store.getBlocksByFlavour('affine:paragraph');
         const notes = store.getBlocksByFlavour('affine:note');
         if (!notes.length) return;
-
+        const paragraphs = store.getBlocksByFlavour('affine:paragraph');
         if (paragraphs.length > 0) {
           const firstText = (paragraphs[0].model as { text?: Text }).text;
           if (firstText) {
             firstText.delete(0, firstText.length);
             if (newContent) firstText.insert(newContent, 0);
-          }
-          for (let i = 1; i < paragraphs.length; i++) {
-            const t = (paragraphs[i].model as { text?: Text }).text;
-            if (t) t.delete(0, t.length);
           }
         } else if (newContent.trim()) {
           store.addBlock(
@@ -971,10 +1143,80 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
     },
     [journalService, dateKey]
   );
+  const emptyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Category tabs ──────────────────────────────────────────────────────────
+  const [activeCategory, setActiveCategory] = useState<string>(ALL_CATEGORY);
+  useEffect(() => {
+    setActiveCategory(ALL_CATEGORY);
+  }, [dateKey]);
+
+  const categories = useMemo(() => {
+    const seen = new Map<string, { id: string; label: string; rank: number }>();
+    for (const s of segments) {
+      if (s.templateId && !seen.has(s.templateId)) {
+        seen.set(s.templateId, {
+          id: s.templateId,
+          label: s.label,
+          rank: s.rank,
+        });
+      }
+    }
+    return Array.from(seen.values()).sort((a, b) => a.rank - b.rank);
+  }, [segments]);
+
+  useEffect(() => {
+    if (
+      activeCategory !== ALL_CATEGORY &&
+      !categories.some(c => c.id === activeCategory)
+    ) {
+      setActiveCategory(ALL_CATEGORY);
+    }
+  }, [categories, activeCategory]);
+
+  const visibleSegments = useMemo(
+    () =>
+      activeCategory === ALL_CATEGORY
+        ? segments
+        : segments.filter(s => s.templateId === activeCategory),
+    [segments, activeCategory]
+  );
+
+  // ── Vertical bar index → jump to the Nth entry ──────────────────────────────
+  // We read the scroll container's children directly instead of keeping a refs
+  // array: the entry divs are this container's direct children in order, so
+  // `children[i]` is always the i-th entry — robust across re-renders (a stale
+  // refs array was making clicks register only once).
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [activeEntry, setActiveEntry] = useState(0);
+
+  const jumpTo = useCallback((i: number) => {
+    const scroller = scrollRef.current;
+    const el = scroller?.children[i] as HTMLElement | undefined;
+    if (scroller && el) {
+      scroller.scrollTo({ top: el.offsetTop, behavior: 'smooth' });
+      setActiveEntry(i);
+    }
+  }, []);
+
+  const onScroll = useCallback(() => {
+    const scroller = scrollRef.current;
+    if (!scroller) return;
+    let idx = 0;
+    Array.from(scroller.children).forEach((el, i) => {
+      if ((el as HTMLElement).offsetTop <= scroller.scrollTop + 12) idx = i;
+    });
+    setActiveEntry(idx);
+  }, []);
+
+  // Switching category resets the list to the top and clears the active bar.
+  useEffect(() => {
+    setActiveEntry(0);
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [activeCategory]);
 
   const d = dayjs(dateKey);
+  const showTabs = categories.length > 0;
 
   return (
     <div className={styles.flipBookPageInner} data-side="left">
@@ -988,34 +1230,101 @@ const LeftPageContent = ({ dateKey }: { dateKey: string }) => {
         </div>
       </div>
       <div className={styles.flipBookPageDivider} />
-      <span className={styles.flipBookSectionLabel} data-section="journal">
-        Journal
-      </span>
-      <textarea
-        className={styles.flipBookPageTextarea}
-        value={content}
-        onChange={e => {
-          const val = e.target.value;
-          setContent(val);
-          if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-          syncTimerRef.current = setTimeout(() => syncContent(val), 300);
-        }}
-        onFocus={() => {
-          isEditingRef.current = true;
-        }}
-        onBlur={e => {
-          isEditingRef.current = false;
-          if (syncTimerRef.current) {
-            clearTimeout(syncTimerRef.current);
-            syncTimerRef.current = null;
-          }
-          syncContent(e.target.value);
-        }}
-        placeholder="No entry for this day…"
-        onMouseDown={e => e.stopPropagation()}
-        onTouchStart={e => e.stopPropagation()}
-        spellCheck={false}
-      />
+
+      {showTabs ? (
+        <div
+          className={styles.flipBookCategoryBar}
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <button
+            className={styles.flipBookCategoryTab}
+            data-active={activeCategory === ALL_CATEGORY}
+            onClick={() => setActiveCategory(ALL_CATEGORY)}
+          >
+            全部
+          </button>
+          {categories.map(c => (
+            <button
+              key={c.id}
+              className={styles.flipBookCategoryTab}
+              data-active={activeCategory === c.id}
+              onClick={() => setActiveCategory(c.id)}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <span className={styles.flipBookSectionLabel} data-section="journal">
+          Journal
+        </span>
+      )}
+
+      {segments.length === 0 ? (
+        <textarea
+          className={styles.flipBookPageTextarea}
+          value={emptyContent}
+          onChange={e => {
+            const val = e.target.value;
+            setEmptyContent(val);
+            if (emptyTimerRef.current) clearTimeout(emptyTimerRef.current);
+            emptyTimerRef.current = setTimeout(() => syncEmpty(val), 300);
+          }}
+          onFocus={() => {
+            isEditingRef.current = true;
+          }}
+          onBlur={e => {
+            isEditingRef.current = false;
+            if (emptyTimerRef.current) {
+              clearTimeout(emptyTimerRef.current);
+              emptyTimerRef.current = null;
+            }
+            syncEmpty(e.target.value);
+          }}
+          placeholder="No entry for this day…"
+          onMouseDown={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
+          spellCheck={false}
+        />
+      ) : (
+        <div className={styles.flipBookLeftBody}>
+          {visibleSegments.length > 1 ? (
+            <div
+              className={styles.flipBookBarIndex}
+              onMouseDown={e => e.stopPropagation()}
+            >
+              {visibleSegments.map((s, i) => (
+                <button
+                  key={s.headingBlockId ?? `pre-${i}`}
+                  className={styles.flipBookBar}
+                  data-active={i === activeEntry}
+                  onClick={() => jumpTo(i)}
+                  aria-label={s.title || 'Journal'}
+                >
+                  <span className={styles.flipBookBarTip}>
+                    {s.title || 'Journal'}
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          <div
+            className={styles.flipBookEntries}
+            ref={scrollRef}
+            onScroll={onScroll}
+          >
+            {visibleSegments.map((s, i) => (
+              <FlipBookEntry
+                key={s.headingBlockId ?? `pre-${i}`}
+                store={storeRef.current}
+                entry={s}
+                isEditingRef={isEditingRef}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
