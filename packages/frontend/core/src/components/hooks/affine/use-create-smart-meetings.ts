@@ -1,4 +1,8 @@
 import type { SmartMeetingItem } from '@affine/core/blocksuite/ai/runtime/request/gemini-direct';
+import {
+  generateMeetingRoomUrl,
+  MEETING_PROP,
+} from '@affine/core/desktop/pages/workspace/detail-page/tabs/journal/meeting-utils';
 import { DocsService } from '@affine/core/modules/doc';
 import { JournalService } from '@affine/core/modules/journal';
 import { Text } from '@blocksuite/affine/store';
@@ -26,8 +30,12 @@ export const useCreateSmartMeetings = () => {
         if (!day.isValid() || !title) continue;
         const dateKey = day.format('YYYY-MM-DD');
         const notes = meeting.notes?.trim() ?? '';
+        const location = meeting.location?.trim() ?? '';
         const newDoc = docsService.createDoc({
-          title: `Meeting · ${day.format('MMM D, YYYY')}`,
+          // Use the AI-extracted name as the meeting title so it shows up in
+          // the calendar / meeting editor (still prefixed so it's recognised
+          // as a meeting doc).
+          title: `Meeting · ${title}`,
           docProps: {
             paragraph: { type: 'h3', text: new Text(title) },
             onStoreLoad: (store, { noteId }) => {
@@ -38,7 +46,7 @@ export const useCreateSmartMeetings = () => {
               );
               store.addBlock(
                 'affine:paragraph',
-                { text: new Text('') },
+                { text: new Text(location) },
                 noteId
               );
               store.addBlock(
@@ -54,6 +62,28 @@ export const useCreateSmartMeetings = () => {
             },
           },
         });
+
+        // Mirror the AI-extracted schedule into the same custom properties the
+        // in-calendar meeting editor reads, so name/time/location (and an
+        // auto-generated video link for online meetings) show up there too.
+        newDoc.setCustomProperty(MEETING_PROP.startDate, dateKey);
+        newDoc.setCustomProperty(MEETING_PROP.endDate, dateKey);
+        if (meeting.startTime) {
+          newDoc.setCustomProperty(MEETING_PROP.startTime, meeting.startTime);
+        }
+        if (meeting.endTime) {
+          newDoc.setCustomProperty(MEETING_PROP.endTime, meeting.endTime);
+        }
+        if (location) {
+          newDoc.setCustomProperty(MEETING_PROP.location, location);
+        }
+        if (meeting.online) {
+          newDoc.setCustomProperty(
+            MEETING_PROP.videoLink,
+            generateMeetingRoomUrl(title)
+          );
+        }
+
         const journalDoc = journalService.ensureJournalByDate(dateKey);
         journalService.setJournalDate(newDoc.id, dateKey);
         docsService.addLinkedDoc(journalDoc.id, newDoc.id).catch(console.error);

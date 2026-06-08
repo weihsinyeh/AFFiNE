@@ -135,6 +135,10 @@ type Suggestion =
       date: string;
       title: string;
       notes?: string;
+      startTime?: string;
+      endTime?: string;
+      location?: string;
+      online?: boolean;
       added: boolean;
     };
 
@@ -218,6 +222,10 @@ const JournalSmartPlan = ({ doc }: { doc: Store }) => {
           date: meeting.date,
           title,
           notes: meeting.notes?.trim() || undefined,
+          startTime: meeting.startTime?.trim() || undefined,
+          endTime: meeting.endTime?.trim() || undefined,
+          location: meeting.location?.trim() || undefined,
+          online: meeting.online === true,
           added: false,
         });
       });
@@ -248,6 +256,10 @@ const JournalSmartPlan = ({ doc }: { doc: Store }) => {
               date: suggestion.date,
               title: suggestion.title,
               notes: suggestion.notes,
+              startTime: suggestion.startTime,
+              endTime: suggestion.endTime,
+              location: suggestion.location,
+              online: suggestion.online,
             },
           ]);
         }

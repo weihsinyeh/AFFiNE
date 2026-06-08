@@ -70,6 +70,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { CalendarEvents } from './calendar-events';
 import * as styles from './journal.css';
+import { generateMeetingRoomUrl, MEETING_PROP } from './meeting-utils';
 import { JournalTemplateOnboarding } from './template-onboarding';
 import { JournalTemplateSetting } from './template-setting';
 
@@ -490,42 +491,6 @@ const JournalCalendarDateCell = ({
 };
 
 // ── Meeting detail editor ───────────────────────────────────────────────────
-
-/** Custom-property keys for a meeting doc's scheduling details. */
-const MEETING_PROP = {
-  allDay: 'meeting_allDay',
-  startDate: 'meeting_startDate',
-  endDate: 'meeting_endDate',
-  startTime: 'meeting_startTime',
-  endTime: 'meeting_endTime',
-  repeat: 'meeting_repeat',
-  location: 'meeting_location',
-  videoLink: 'meeting_videoLink',
-};
-
-// Hostpoint Meet is a free, Swiss-hosted, account-free Jitsi service: visiting
-// https://meet.hostpoint.ch/<room> opens (or creates) that room, the link
-// doesn't expire, and it can be reopened any time — so a generated link works
-// as a real video call whenever it's clicked. We just mint a hard-to-guess
-// room name on the client; no API, key, or login needed.
-const VIDEO_MEETING_BASE = 'https://meet.hostpoint.ch';
-
-const generateMeetingRoomUrl = (title: string) => {
-  const slug = title
-    .normalize('NFKD')
-    .replace(/[^a-zA-Z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 24)
-    .toLowerCase();
-  const bytes = new Uint8Array(9);
-  (globalThis.crypto ?? window.crypto).getRandomValues(bytes);
-  const token = Array.from(bytes, b => b.toString(36))
-    .join('')
-    .replace(/[^a-z0-9]/g, '')
-    .slice(0, 12);
-  const room = `inote-${slug ? `${slug}-` : ''}${token}`;
-  return `${VIDEO_MEETING_BASE}/${room}`;
-};
 
 /** 00:00 … 23:30 in 30-minute steps for the time-range dropdowns. */
 const MEETING_TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {

@@ -98,6 +98,12 @@ export type SmartMeetingItem = {
   date: string;
   title: string;
   notes?: string;
+  /** HH:mm, on a 30-minute grid (e.g. 14:00 / 14:30). */
+  startTime?: string;
+  endTime?: string;
+  location?: string;
+  /** True when the journal hints it's an online / video meeting. */
+  online?: boolean;
 };
 
 export type SmartPlanExtraction = {
@@ -133,11 +139,14 @@ export function buildSmartTodoMeetingPrompt(
 規則：
 - 只挑「真的有暗示要安排」的事，不要硬湊；沒有就回傳空陣列。
 - 所有相對日期（明天、下週三、這個週末…）都換算成絕對日期 YYYY-MM-DD，以這篇日記的日期為基準。沒提到日期的，歸到這篇日記的日期 ${ref}。
-- meeting 的 title 要簡短（例如「與客戶的專案會議」），notes 放補充細節（地點、對象、議題），沒有就省略。
+- meeting 的 title 要簡短（例如「與客戶的專案會議」），notes 放補充細節（對象、議題），沒有就省略。
+- 如果有提到時間，填 startTime／endTime，格式為 24 小時制 HH:mm，且**只用整點或半點**（例如 14:00、14:30）；只提到開始時間就只填 startTime；完全沒提到就省略。
+- 如果有提到地點（實體地點、地址、店名、會議室…），填 location；沒有就省略。
+- 如果有提到是「線上／視訊／遠端」會議（例如 Google Meet、視訊通話、線上開會、Zoom…），把 online 設為 true；否則省略或設 false。
 - reply 用一句和日記相同語言的話，溫和地總結你發現了什麼。
 
 嚴格以標準 JSON 物件回傳，不要任何 markdown 標籤或多餘文字。格式範例：
-{"reply":"我發現幾件之後要做的事…","todos":[{"date":"${ref}","tasks":["還書給圖書館"]}],"meetings":[{"date":"${ref}","title":"與客戶的專案會議","notes":"討論下一階段需求"}]}
+{"reply":"我發現幾件之後要做的事…","todos":[{"date":"${ref}","tasks":["還書給圖書館"]}],"meetings":[{"date":"${ref}","title":"與客戶的專案會議","notes":"討論下一階段需求","startTime":"14:00","endTime":"15:00","location":"台北辦公室 3 樓會議室","online":false}]}
 若完全沒有可加入的事項，回傳 {"reply":"...","todos":[],"meetings":[]}。
 
 日記內容：
