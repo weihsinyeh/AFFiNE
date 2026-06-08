@@ -1501,6 +1501,11 @@ export const flipBookEntryImages = style({
   marginTop: 4,
 });
 
+export const flipBookImageWrap = style({
+  position: 'relative',
+  display: 'inline-flex',
+});
+
 export const flipBookImage = style({
   maxWidth: '100%',
   maxHeight: 200,
@@ -1510,25 +1515,29 @@ export const flipBookImage = style({
   display: 'block',
 });
 
-export const flipBookUploadBtn = style({
-  alignSelf: 'flex-start',
-  display: 'inline-flex',
+export const flipBookImageDelete = style({
+  position: 'absolute',
+  top: 4,
+  right: 4,
+  width: 20,
+  height: 20,
+  display: 'flex',
   alignItems: 'center',
-  gap: 4,
-  marginTop: 3,
-  padding: '2px 9px',
-  fontSize: '0.78em',
-  fontFamily: 'inherit',
-  border: `1px dashed ${cssVar('borderColor')}`,
-  borderRadius: 6,
-  background: 'transparent',
-  color: flipBookTextMuted,
+  justifyContent: 'center',
+  padding: 0,
+  border: 'none',
+  borderRadius: '50%',
+  background: 'rgba(0,0,0,0.55)',
+  color: '#fff',
+  fontSize: 12,
+  lineHeight: 1,
   cursor: 'pointer',
+  opacity: 0,
+  transition: 'opacity 0.15s, background 0.15s',
   selectors: {
-    '&:hover': {
-      background: 'rgba(0,0,0,0.04)',
-      color: flipBookTextPrimary,
-    },
+    '&:hover': { background: 'rgba(200,40,40,0.9)' },
+    // Reveal on hover of the surrounding image.
+    [`${flipBookImageWrap}:hover &`]: { opacity: 1 },
   },
 });
 

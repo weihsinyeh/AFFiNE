@@ -943,10 +943,12 @@ const FlipBookImage = ({
   store,
   sourceId,
   type,
+  onDelete,
 }: {
   store: any;
   sourceId?: string;
   type?: string;
+  onDelete: () => void;
 }) => {
   const [url, setUrl] = useState('');
   useEffect(() => {
@@ -968,13 +970,35 @@ const FlipBookImage = ({
   }, [store, sourceId, type]);
   if (!url) return null;
   return (
-    <img
-      className={styles.flipBookImage}
-      src={url}
-      alt=""
-      draggable={false}
-      onMouseDown={e => e.stopPropagation()}
-    />
+    <div
+      className={styles.flipBookImageWrap}
+      // Right-click a photo to delete it (browser menu suppressed).
+      onContextMenu={e => {
+        e.preventDefault();
+        e.stopPropagation();
+        onDelete();
+      }}
+    >
+      <img
+        className={styles.flipBookImage}
+        src={url}
+        alt=""
+        draggable={false}
+        onMouseDown={e => e.stopPropagation()}
+      />
+      <button
+        type="button"
+        className={styles.flipBookImageDelete}
+        title="刪除照片"
+        onClick={e => {
+          e.stopPropagation();
+          onDelete();
+        }}
+        onMouseDown={e => e.stopPropagation()}
+      >
+        ✕
+      </button>
+    </div>
   );
 };
 
@@ -1042,7 +1066,6 @@ const FlipBookEntry = ({
   const [heading, setHeading] = useState(entry.title);
   const focusedRef = useRef(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Resync from the doc when it changes elsewhere, unless editing here.
   useEffect(() => {
@@ -1052,7 +1075,7 @@ const FlipBookEntry = ({
   const [dragOver, setDragOver] = useState(false);
 
   // Core upload: store the blob and append an affine:image block at the end of
-  // this entry. Shared by the file-picker button and drag-and-drop.
+  // this entry. Used by drag-and-drop.
   const uploadFile = useCallback(
     async (file: File) => {
       if (!file || !file.type.startsWith('image/') || !store) return;
@@ -1096,15 +1119,6 @@ const FlipBookEntry = ({
       }
     },
     [store, entry.bodyBlockIds, entry.headingBlockId]
-  );
-
-  const handleFile = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      e.target.value = '';
-      if (file) uploadFile(file).catch(() => {});
-    },
-    [uploadFile]
   );
 
   const handleDrop = useCallback(
@@ -1202,25 +1216,14 @@ const FlipBookEntry = ({
               store={store}
               sourceId={img.sourceId}
               type={img.type}
+              onDelete={() => {
+                const model = store.getBlock(img.id)?.model;
+                if (model) store.deleteBlock(model);
+              }}
             />
           ))}
         </div>
       ) : null}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        style={{ display: 'none' }}
-        onChange={e => void handleFile(e)}
-      />
-      <button
-        type="button"
-        className={styles.flipBookUploadBtn}
-        onClick={() => fileInputRef.current?.click()}
-        onMouseDown={e => e.stopPropagation()}
-      >
-        📷 拖曳或點擊上傳照片
-      </button>
     </div>
   );
 };
