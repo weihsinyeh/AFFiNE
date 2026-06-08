@@ -17,6 +17,7 @@ import {
   DEFAULT_RECOMMEND_CITY,
   DEFAULT_RECOMMEND_DISTRICT,
   DEFAULT_RECOMMEND_MODEL_ID,
+  DEFAULT_TODO_MEETING_MODEL_ID,
   FOOD_RECOMMEND_CITY_KEY,
   FOOD_RECOMMEND_DISTRICT_KEY,
   GEMINI_API_KEY_STORAGE_KEY,
@@ -24,6 +25,7 @@ import {
   GEMINI_JOURNAL_MODEL_STORAGE_KEY,
   GEMINI_MODELS,
   GEMINI_RECOMMEND_MODEL_STORAGE_KEY,
+  GEMINI_TODO_MEETING_MODEL_STORAGE_KEY,
   RANDOM_LOCATION_OPTION,
   TAIWAN_CITIES,
   TAIWAN_DISTRICTS,
@@ -304,6 +306,13 @@ export const ApiKeySettings = () => {
           storageKey={GEMINI_RECOMMEND_MODEL_STORAGE_KEY}
           defaultModelId={DEFAULT_RECOMMEND_MODEL_ID}
           testIdPrefix="recommend-model"
+        />
+        <GeminiModelSetting
+          name="AI智慧新增todo及meeting使用模型"
+          desc="日記「AI智慧新增todo及meeting」（掃描日記找出可加入的待辦與會議）會使用這個 Gemini 模型。"
+          storageKey={GEMINI_TODO_MEETING_MODEL_STORAGE_KEY}
+          defaultModelId={DEFAULT_TODO_MEETING_MODEL_ID}
+          testIdPrefix="todo-meeting-model"
         />
         <LocationSetting
           name="旅遊推薦地區"

@@ -38,6 +38,15 @@ export const GEMINI_RECOMMEND_MODEL_STORAGE_KEY = 'GeminiRecommendModelId';
 
 export const DEFAULT_RECOMMEND_MODEL_ID = 'gemini-2.5-flash';
 
+/**
+ * "AI智慧新增todo及meeting": the model used to scan a journal entry for
+ * hinted follow-up todos / meetings (possibly on other days), configurable
+ * in Settings -> General -> API Key.
+ */
+export const GEMINI_TODO_MEETING_MODEL_STORAGE_KEY = 'GeminiTodoMeetingModelId';
+
+export const DEFAULT_TODO_MEETING_MODEL_ID = 'gemini-2.5-flash';
+
 export const TRAVEL_RECOMMEND_CITY_KEY = 'AIRecommendTravelCity';
 export const TRAVEL_RECOMMEND_DISTRICT_KEY = 'AIRecommendTravelDistrict';
 export const FOOD_RECOMMEND_CITY_KEY = 'AIRecommendFoodCity';

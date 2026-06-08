@@ -93,6 +93,57 @@ export function buildSmartTodoPrompt(text: string, now: Date): string {
 ${text}`;
 }
 
+export type SmartMeetingItem = {
+  /** YYYY-MM-DD */
+  date: string;
+  title: string;
+  notes?: string;
+};
+
+export type SmartPlanExtraction = {
+  reply?: string;
+  todos?: SmartTodoItem[];
+  meetings?: SmartMeetingItem[];
+};
+
+/**
+ * Prompt for "AI智慧新增todo及meeting": scan a whole journal entry for hints
+ * that imply follow-up todos (possibly on other days) or meetings worth
+ * scheduling, resolving relative dates against the journal's own date.
+ */
+export function buildSmartTodoMeetingPrompt(
+  text: string,
+  refDate: Date
+): string {
+  const ref = `${refDate.getFullYear()}-${String(refDate.getMonth() + 1).padStart(2, '0')}-${String(refDate.getDate()).padStart(2, '0')}`;
+  const weekday = [
+    'Sunday',
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+  ][refDate.getDay()];
+  return `你是一個貼心的日記助理。下面是一篇日記的內容，這篇日記的日期是 ${ref}（${weekday}）。
+請仔細閱讀整篇內容，找出任何「字裡行間暗示」之後需要做的事，分成兩類：
+1. 待辦事項（todo）：使用者提到、答應、或計畫之後要做的具體小事（例如「下週要還書」「明天記得回信」「月底前繳費」）。
+2. 會議／約會（meeting）：提到要和某人見面、開會、約訪、聚餐等需要安排的事件（例如「禮拜五跟客戶開會」「下週和朋友吃飯」）。
+
+規則：
+- 只挑「真的有暗示要安排」的事，不要硬湊；沒有就回傳空陣列。
+- 所有相對日期（明天、下週三、這個週末…）都換算成絕對日期 YYYY-MM-DD，以這篇日記的日期為基準。沒提到日期的，歸到這篇日記的日期 ${ref}。
+- meeting 的 title 要簡短（例如「與客戶的專案會議」），notes 放補充細節（地點、對象、議題），沒有就省略。
+- reply 用一句和日記相同語言的話，溫和地總結你發現了什麼。
+
+嚴格以標準 JSON 物件回傳，不要任何 markdown 標籤或多餘文字。格式範例：
+{"reply":"我發現幾件之後要做的事…","todos":[{"date":"${ref}","tasks":["還書給圖書館"]}],"meetings":[{"date":"${ref}","title":"與客戶的專案會議","notes":"討論下一階段需求"}]}
+若完全沒有可加入的事項，回傳 {"reply":"...","todos":[],"meetings":[]}。
+
+日記內容：
+${text}`;
+}
+
 /**
  * Compose a standalone prompt for an in-doc /ai action. The backend
  * normally expands a prompt template identified by `promptName`; the
