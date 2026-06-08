@@ -1,4 +1,8 @@
 import {
+  JournalRatingControls,
+  ratingSortValue,
+} from '@affine/core/blocksuite/block-suite-editor/journal-rating';
+import {
   DEFAULT_JOURNAL_TEMPLATES,
   JOURNAL_TEMPLATES_STORAGE_KEY,
   type JournalSegment,
@@ -6,6 +10,7 @@ import {
   type StoredJournalTemplate,
 } from '@affine/core/blocksuite/block-suite-editor/journal-templates';
 import { DocsService } from '@affine/core/modules/doc';
+import type { DocRecord } from '@affine/core/modules/doc/entities/record';
 import { GlobalStateService } from '@affine/core/modules/storage';
 import {
   ViewBody,
@@ -38,11 +43,25 @@ const PALETTE = [
   { bg: 'rgba(139,92,246,0.13)', fg: '#6d28d9' },
 ];
 
-type SortMode = 'date-desc' | 'date-asc';
+type SortField = 'date' | 'stars' | 'mood' | 'weather';
+type SortMode = `${SortField}-desc` | `${SortField}-asc`;
+
+const SORT_OPTIONS: { value: SortMode; label: string }[] = [
+  { value: 'date-desc', label: '排序：日期 ↓' },
+  { value: 'date-asc', label: '排序：日期 ↑' },
+  { value: 'stars-desc', label: '排序：星等 ↓' },
+  { value: 'stars-asc', label: '排序：星等 ↑' },
+  { value: 'mood-desc', label: '排序：心情 ↓' },
+  { value: 'mood-asc', label: '排序：心情 ↑' },
+  { value: 'weather-desc', label: '排序：天氣 ↓' },
+  { value: 'weather-asc', label: '排序：天氣 ↑' },
+];
 
 type JournalEntry = {
   key: string;
   docId: string;
+  docRecord: DocRecord;
+  headingId: string;
   date: string;
   templateId: string;
   label: string;
@@ -69,33 +88,46 @@ const EntryCard = ({
   const workbench = useService(WorkbenchService).workbench;
   const day = dayjs(entry.date);
   return (
-    <button
+    <div
       className={styles.card}
       style={{ borderLeftColor: color.fg }}
-      onClick={() => workbench.openDoc(entry.docId, { at: 'active' })}
       data-testid="journal-entry-card"
       data-template={entry.templateId}
     >
-      <div className={styles.cardHead}>
-        <span
-          className={styles.cardChip}
-          style={{ background: color.bg, color: color.fg }}
-        >
-          {entry.label}
-        </span>
-        <span className={styles.cardDate}>
-          {day.isValid() ? day.format('MMM D, YYYY') : entry.date}
-        </span>
+      <div
+        className={styles.cardClickable}
+        role="button"
+        tabIndex={0}
+        onClick={() => workbench.openDoc(entry.docId, { at: 'active' })}
+      >
+        <div className={styles.cardHead}>
+          <span
+            className={styles.cardChip}
+            style={{ background: color.bg, color: color.fg }}
+          >
+            {entry.label}
+          </span>
+          <span className={styles.cardDate}>
+            {day.isValid() ? day.format('MMM D, YYYY') : entry.date}
+          </span>
+        </div>
+        <div className={styles.cardTitle} title={entry.title}>
+          {entry.title}
+        </div>
+        {entry.preview ? (
+          <p className={styles.cardPreview}>{entry.preview}</p>
+        ) : (
+          <span className={styles.cardPreviewEmpty}>尚無內容</span>
+        )}
       </div>
-      <div className={styles.cardTitle} title={entry.title}>
-        {entry.title}
+      <div className={styles.cardRating}>
+        <JournalRatingControls
+          docRecord={entry.docRecord}
+          headingId={entry.headingId}
+          compact
+        />
       </div>
-      {entry.preview ? (
-        <p className={styles.cardPreview}>{entry.preview}</p>
-      ) : (
-        <span className={styles.cardPreviewEmpty}>尚無內容</span>
-      )}
-    </button>
+    </div>
   );
 };
 
@@ -165,6 +197,30 @@ const AllJournalsPage = () => {
     return () => cleanups.forEach(fn => fn());
   }, [journalDocs, docsService, templates]);
 
+  // Subscribe to each journal doc's properties so star / mood / weather sorting
+  // reacts when a rating changes. (The cards read their own values directly.)
+  const [docProps, setDocProps] = useState<
+    Map<string, Record<string, string | undefined>>
+  >(new Map());
+  useEffect(() => {
+    const map = new Map<string, Record<string, string | undefined>>();
+    const subs: Array<{ unsubscribe(): void }> = [];
+    for (const doc of journalDocs) {
+      const update = (props: unknown) => {
+        map.set(doc.id, (props ?? {}) as Record<string, string | undefined>);
+        setDocProps(new Map(map));
+      };
+      map.set(
+        doc.id,
+        (doc.properties$.value ?? {}) as Record<string, string | undefined>
+      );
+      const sub = doc.properties$.subscribe(update);
+      if (sub?.unsubscribe) subs.push(sub);
+    }
+    setDocProps(new Map(map));
+    return () => subs.forEach(sub => sub.unsubscribe());
+  }, [journalDocs]);
+
   const colorFor = useMemo(() => {
     const index = new Map(templates.map((t, i) => [t.id, i]));
     return (templateId: string) =>
@@ -177,19 +233,27 @@ const AllJournalsPage = () => {
     for (const doc of journalDocs) {
       const date = doc.meta$.value.title ?? '';
       const segs = docSegments.get(doc.id) ?? [];
-      segs.forEach((seg, i) => {
-        // Only categorised template entries; free-form preamble is skipped.
-        if (!seg.templateId || !known.has(seg.templateId)) return;
+      for (const seg of segs) {
+        // Only categorised template entries with a heading block (the rating
+        // key); free-form preamble is skipped.
+        if (
+          !seg.templateId ||
+          !known.has(seg.templateId) ||
+          !seg.headingBlockId
+        )
+          continue;
         list.push({
-          key: `${doc.id}:${seg.headingBlockId ?? i}`,
+          key: `${doc.id}:${seg.headingBlockId}`,
           docId: doc.id,
+          docRecord: doc,
+          headingId: seg.headingBlockId,
           date,
           templateId: seg.templateId,
           label: seg.label,
           title: seg.title || seg.label,
           preview: previewOf(seg),
         });
-      });
+      }
     }
     return list;
   }, [journalDocs, docSegments, templates]);
@@ -207,12 +271,23 @@ const AllJournalsPage = () => {
       selectedId === ALL
         ? entries
         : entries.filter(entry => entry.templateId === selectedId);
+    const dashIndex = sortMode.lastIndexOf('-');
+    const field = sortMode.slice(0, dashIndex) as SortField;
+    const dir = sortMode.slice(dashIndex + 1) as 'asc' | 'desc';
+    const dateCmp = (a: JournalEntry, b: JournalEntry) =>
+      a.date < b.date ? -1 : a.date > b.date ? 1 : 0;
     return [...filtered].sort((a, b) => {
-      if (a.date === b.date) return 0;
-      const asc = a.date < b.date ? -1 : 1;
-      return sortMode === 'date-asc' ? asc : -asc;
+      const primary =
+        field === 'date'
+          ? dateCmp(a, b)
+          : ratingSortValue(docProps.get(a.docId), a.headingId, field) -
+            ratingSortValue(docProps.get(b.docId), b.headingId, field);
+      const signed = dir === 'asc' ? primary : -primary;
+      if (signed !== 0) return signed;
+      // Tie-break: newest first, regardless of direction.
+      return -dateCmp(a, b);
     });
-  }, [entries, selectedId, sortMode]);
+  }, [entries, selectedId, sortMode, docProps]);
 
   return (
     <>
@@ -256,9 +331,13 @@ const AllJournalsPage = () => {
             className={styles.sortSelector}
             value={sortMode}
             onChange={e => setSortMode(e.target.value as SortMode)}
+            data-testid="all-journals-sort"
           >
-            <option value="date-desc">Sort: Date ↓</option>
-            <option value="date-asc">Sort: Date ↑</option>
+            {SORT_OPTIONS.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
         </div>
       </ViewHeader>

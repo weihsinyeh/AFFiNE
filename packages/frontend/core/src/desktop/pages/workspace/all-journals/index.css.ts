@@ -124,7 +124,6 @@ export const card = style({
   border: `1px solid ${cssVar('borderColor')}`,
   borderLeftWidth: 3,
   background: cssVarV2('layer/background/primary'),
-  cursor: 'pointer',
   textAlign: 'left',
   transition: 'box-shadow 0.15s, transform 0.1s, border-color 0.15s',
   selectors: {
@@ -133,6 +132,20 @@ export const card = style({
       transform: 'translateY(-1px)',
     },
   },
+});
+
+export const cardClickable = style({
+  flex: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 8,
+  cursor: 'pointer',
+});
+
+export const cardRating = style({
+  marginTop: 'auto',
+  paddingTop: 8,
+  borderTop: `1px solid ${cssVar('borderColor')}`,
 });
 
 export const cardHead = style({
