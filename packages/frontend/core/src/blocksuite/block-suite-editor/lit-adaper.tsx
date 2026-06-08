@@ -49,6 +49,7 @@ import {
 } from '../../components/properties';
 import { BiDirectionalLinkPanel } from './bi-directional-link-panel';
 import { DocIconPicker } from './doc-icon-picker';
+import { JournalCategoryFilter } from './journal-category-filter';
 import { BlocksuiteEditorJournalDocTitle } from './journal-doc-title';
 import { JournalTemplateBar } from './journal-template-bar';
 import { JournalTodayTasks } from './journal-today-tasks';
@@ -283,6 +284,9 @@ export const BlocksuiteDocEditor = forwardRef<
         ) : null}
         {isJournal && !shared && !readonly ? (
           <JournalTemplateBar page={page} />
+        ) : null}
+        {isJournal && !shared && !readonly ? (
+          <JournalCategoryFilter page={page} />
         ) : null}
         <LitDocEditor
           className={styles.docContainer}
