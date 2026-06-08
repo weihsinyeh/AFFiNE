@@ -120,10 +120,10 @@ const useSyncEngineSyncProgress = (meta: WorkspaceMetadata) => {
     content = 'Sync disconnected due to unexpected issues, reconnecting.';
   } else if (syncing) {
     content =
-      `Syncing with AFFiNE Cloud` +
+      `Syncing with I²-Note Cloud` +
       (progress ? ` (${Math.floor(progress * 100)}%)` : '');
   } else {
-    content = 'Synced with AFFiNE Cloud';
+    content = 'Synced with I²-Note Cloud';
   }
 
   const CloudWorkspaceSyncStatus = () => {

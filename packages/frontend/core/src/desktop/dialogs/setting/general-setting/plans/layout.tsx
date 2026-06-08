@@ -61,7 +61,7 @@ export interface PlanCardProps {
   scrollRef?: React.RefObject<HTMLDivElement>;
 }
 export const CloudPlanLayout = ({
-  title = 'AFFiNE Cloud',
+  title = 'I²-Note Cloud',
   caption,
   select,
   toggle,
