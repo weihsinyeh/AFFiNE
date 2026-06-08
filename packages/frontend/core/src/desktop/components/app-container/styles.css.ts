@@ -29,6 +29,19 @@ globalStyle(`html[data-theme="light"] ${appStyle}`, {
     '--affine-noise-opacity': '0.2',
   },
 });
+
+// Soften the all-white light theme into a calm, cool light-gray so the app
+// feels less monotonous and easier on the eyes. Only the base canvas surface
+// is tinted; elevated surfaces (cards, modals) keep their white
+// `layer/background/primary`, so they stand out against the grey backdrop.
+// Scoped to light mode (higher specificity than the theme's :root defaults).
+globalStyle(`html[data-theme="light"]`, {
+  vars: {
+    '--affine-background-primary-color': '#f1f3f5',
+    '--affine-background-secondary-color': '#e8ebee',
+    '--affine-background-overlay-panel-color': '#f7f8fa',
+  },
+});
 globalStyle(`html[data-theme="dark"] ${appStyle}`, {
   vars: {
     '--affine-noise-opacity': '1',
