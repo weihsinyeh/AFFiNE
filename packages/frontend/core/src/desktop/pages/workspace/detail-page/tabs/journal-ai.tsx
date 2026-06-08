@@ -514,7 +514,7 @@ ${rawText}`;
                 margin: 0,
               }}
             >
-              via AFFiNE Journal
+              via I²-Note Journal
             </p>
           </div>
         </div>
