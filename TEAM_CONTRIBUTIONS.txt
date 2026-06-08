@@ -1,0 +1,54 @@
+I²-Note（AFFiNE fork）三人分工
+============================================================
+
+依 fork 之後的 git commit 歷史整理
+（commit 數：momo 42、Wei-Hsin Yeh 33、henry/hengfront 20；
+  henry 與 hengfront 為同一人的兩個 git 名稱）
+
+共同技術底：TypeScript + React、AFFiNE / BlockSuite 區塊編輯器、
+local-first（資料存在瀏覽器、無需自架伺服器）。
+
+
+------------------------------------------------------------
+momo — AI 智慧功能 & 日記體驗
+------------------------------------------------------------
+技術：
+  - Google Gemini API（自備金鑰、瀏覽器直連 + SSE 串流，完全免後端）
+  - BlockSuite 文件 store、vanilla-extract CSS、localStorage 設定
+  - Jitsi（Hostpoint Meet）
+
+做的功能：
+  - 串接 Gemini：模型 / API key 設定、直接對話、文件內 /ai 動作
+  - AI 智慧推薦（隨機旅遊 / 美食行程）
+  - AI 掃描日記自動產生 todo 與 meeting（含時間、地點、線上會議）
+  - 日記模板系統 + 分類過濾
+  - 星等 / 心情 / 天氣評分與排序
+  - All Journals 總覽頁、「過往經驗參考」深連結
+  - 會議一鍵產生視訊連結（Hostpoint Meet）
+  - 全站改名 I²-Note、淺色主題配色
+  - flip 照片拖放上傳 / 刪除
+
+
+------------------------------------------------------------
+Wei-Hsin Yeh — 行事曆 & 3D 翻書
+------------------------------------------------------------
+技術：
+  - CSS 3D transform、HTML Canvas、Pointer 即時拖曳、dayjs、BlockSuite
+
+做的功能：
+  - 整月行事曆檢視，日曆上建立 / 顯示 todo、meeting、journal
+  - All Todos 頁面（表格內聯編輯、狀態 / 優先級 / 截止日、排序）
+  - 3D 翻書：滑鼠即時拖曳翻頁、直接編輯日記、每頁手寫畫布、塗鴉工具列
+  - 會議改名、按天分享 / 多人協作、journal/todo/meeting 文件隔離
+
+
+------------------------------------------------------------
+henry（hengfront）— 日記摘要圖卡 & 翻書分類
+------------------------------------------------------------
+技術：
+  - html2canvas（前端把 DOM 算繪成圖片）、Gemini 摘要、BlockSuite 內容解析
+
+做的功能：
+  - 把（AI）日記摘要算繪成可分享的圖卡（自動帶日期、外框，可下載分享到 IG）
+  - 模板新增時自動分組 / 排序
+  - 3D 翻書左頁依分類分組 + entry 導覽
