@@ -970,15 +970,7 @@ const FlipBookImage = ({
   }, [store, sourceId, type]);
   if (!url) return null;
   return (
-    <div
-      className={styles.flipBookImageWrap}
-      // Right-click a photo to delete it (browser menu suppressed).
-      onContextMenu={e => {
-        e.preventDefault();
-        e.stopPropagation();
-        onDelete();
-      }}
-    >
+    <div className={styles.flipBookImageWrap}>
       <img
         className={styles.flipBookImage}
         src={url}
