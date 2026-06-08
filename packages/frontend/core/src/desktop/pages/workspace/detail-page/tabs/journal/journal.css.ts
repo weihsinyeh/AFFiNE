@@ -1351,6 +1351,46 @@ export const flipBookEntryTextarea = style({
   },
 });
 
+// ── Flip-book entry photos (display + upload) ───────────────────────────────
+
+export const flipBookEntryImages = style({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 6,
+  marginTop: 4,
+});
+
+export const flipBookImage = style({
+  maxWidth: '100%',
+  maxHeight: 200,
+  borderRadius: 6,
+  objectFit: 'cover',
+  border: `1px solid ${cssVar('borderColor')}`,
+  display: 'block',
+});
+
+export const flipBookUploadBtn = style({
+  alignSelf: 'flex-start',
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 4,
+  marginTop: 3,
+  padding: '2px 9px',
+  fontSize: '0.78em',
+  fontFamily: 'inherit',
+  border: `1px dashed ${cssVar('borderColor')}`,
+  borderRadius: 6,
+  background: 'transparent',
+  color: flipBookTextMuted,
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': {
+      background: 'rgba(0,0,0,0.04)',
+      color: flipBookTextPrimary,
+    },
+  },
+});
+
 export const flipBookPageSections = style({
   flex: '1 1 auto',
   display: 'flex',

@@ -892,9 +892,11 @@ const writeEntryBody = (store: any, entry: JournalSegment, text: string) => {
     const note = store.getBlocksByFlavour('affine:note')[0];
     if (!note) return;
     const lines = text.split('\n');
+    // Only text-bearing blocks take part in the line-for-line sync; image
+    // (and other non-text) blocks are left untouched so photos aren't deleted.
     const blocks = entry.bodyBlockIds
       .map((id: string) => store.getBlock(id)?.model)
-      .filter(Boolean);
+      .filter((b: unknown) => b && (b as { text?: unknown }).text);
 
     for (let i = 0; i < blocks.length; i++) {
       const t = (blocks[i] as { text?: Text }).text;
@@ -911,11 +913,17 @@ const writeEntryBody = (store: any, entry: JournalSegment, text: string) => {
         (note.model as { children?: { id: string }[] }).children?.map(
           c => c.id
         ) ?? [];
-      const anchorId = blocks.length
-        ? blocks[blocks.length - 1].id
-        : entry.headingBlockId;
-      let insertAt =
-        (anchorId ? childIds.indexOf(anchorId) : childIds.length - 1) + 1;
+      // Append new lines after the entry's last block (text or image) so they
+      // land at the end of the entry rather than before its photos.
+      const entryIdxs = entry.bodyBlockIds
+        .map((id: string) => childIds.indexOf(id))
+        .filter((i: number) => i >= 0);
+      const anchorIdx = entryIdxs.length
+        ? Math.max(...entryIdxs)
+        : entry.headingBlockId
+          ? childIds.indexOf(entry.headingBlockId)
+          : childIds.length - 1;
+      let insertAt = anchorIdx + 1;
       for (let i = blocks.length; i < lines.length; i++) {
         store.addBlock(
           'affine:paragraph',
@@ -928,6 +936,46 @@ const writeEntryBody = (store: any, entry: JournalSegment, text: string) => {
   } catch (e) {
     console.error('flip book entry sync failed', e);
   }
+};
+
+/** Resolve an image block's blob to an object URL and render it. */
+const FlipBookImage = ({
+  store,
+  sourceId,
+  type,
+}: {
+  store: any;
+  sourceId?: string;
+  type?: string;
+}) => {
+  const [url, setUrl] = useState('');
+  useEffect(() => {
+    if (!store || !sourceId) return;
+    let active = true;
+    let obj = '';
+    store.blobSync
+      ?.get(sourceId)
+      .then((blob: Blob | null) => {
+        if (!blob || !active) return;
+        obj = URL.createObjectURL(type ? new Blob([blob], { type }) : blob);
+        setUrl(obj);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+      if (obj) URL.revokeObjectURL(obj);
+    };
+  }, [store, sourceId, type]);
+  if (!url) return null;
+  return (
+    <img
+      className={styles.flipBookImage}
+      src={url}
+      alt=""
+      draggable={false}
+      onMouseDown={e => e.stopPropagation()}
+    />
+  );
 };
 
 /** Overwrite a single block's text (used for the editable entry heading). */
@@ -955,15 +1003,98 @@ const FlipBookEntry = ({
   entry: JournalSegment;
   isEditingRef: React.RefObject<boolean>;
 }) => {
-  const [text, setText] = useState(entry.bodyText);
+  // Split the entry's body into image blocks (rendered as photos) and the
+  // text-only content (fed to the textarea). The textarea must not include
+  // image blocks, otherwise the line-for-line write-back would clobber them.
+  const imageBlocks = useMemo(() => {
+    const out: { id: string; sourceId?: string; type?: string }[] = [];
+    for (const id of entry.bodyBlockIds) {
+      const model = store?.getBlock(id)?.model as
+        | { flavour?: string; props?: { sourceId?: string; type?: string } }
+        | undefined;
+      if (model?.flavour === 'affine:image') {
+        out.push({
+          id,
+          sourceId: model.props?.sourceId,
+          type: model.props?.type,
+        });
+      }
+    }
+    return out;
+  }, [store, entry.bodyBlockIds]);
+
+  const textContent = useMemo(() => {
+    const parts: string[] = [];
+    for (const id of entry.bodyBlockIds) {
+      const model = store?.getBlock(id)?.model as
+        | { flavour?: string; text?: { toString(): string } }
+        | undefined;
+      if (model && model.flavour !== 'affine:image' && model.text) {
+        parts.push(model.text.toString());
+      }
+    }
+    return parts.join('\n');
+    // bodyBlockIds is a fresh array on every segment re-read, so this already
+    // recomputes whenever the doc content changes.
+  }, [store, entry.bodyBlockIds]);
+
+  const [text, setText] = useState(textContent);
   const [heading, setHeading] = useState(entry.title);
   const focusedRef = useRef(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Resync from the doc when it changes elsewhere, unless editing here.
   useEffect(() => {
-    if (!focusedRef.current) setText(entry.bodyText);
-  }, [entry.bodyText]);
+    if (!focusedRef.current) setText(textContent);
+  }, [textContent]);
+
+  const handleFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file || !store) return;
+      try {
+        const sourceId = await store.blobSync.set(file);
+        const dims = await new Promise<{ width: number; height: number }>(
+          resolve => {
+            const probe = new Image();
+            const probeUrl = URL.createObjectURL(file);
+            const done = (width: number, height: number) => {
+              URL.revokeObjectURL(probeUrl);
+              resolve({ width, height });
+            };
+            probe.onload = () => done(probe.naturalWidth, probe.naturalHeight);
+            probe.onerror = () => done(0, 0);
+            probe.src = probeUrl;
+          }
+        );
+        const note = store.getBlocksByFlavour('affine:note')[0];
+        if (!note) return;
+        const childIds: string[] =
+          (note.model as { children?: { id: string }[] }).children?.map(
+            c => c.id
+          ) ?? [];
+        const entryIdxs = entry.bodyBlockIds
+          .map((id: string) => childIds.indexOf(id))
+          .filter((i: number) => i >= 0);
+        const anchorIdx = entryIdxs.length
+          ? Math.max(...entryIdxs)
+          : entry.headingBlockId
+            ? childIds.indexOf(entry.headingBlockId)
+            : childIds.length - 1;
+        store.addBlock(
+          'affine:image',
+          { sourceId, width: dims.width, height: dims.height, size: file.size },
+          note.id,
+          anchorIdx + 1
+        );
+      } catch (err) {
+        console.error('flip book image upload failed', err);
+      }
+    },
+    [store, entry.bodyBlockIds, entry.headingBlockId]
+  );
   useEffect(() => {
     if (!focusedRef.current) setHeading(entry.title);
   }, [entry.title]);
@@ -1022,6 +1153,33 @@ const FlipBookEntry = ({
         onTouchStart={e => e.stopPropagation()}
         spellCheck={false}
       />
+      {imageBlocks.length > 0 ? (
+        <div className={styles.flipBookEntryImages}>
+          {imageBlocks.map(img => (
+            <FlipBookImage
+              key={img.id}
+              store={store}
+              sourceId={img.sourceId}
+              type={img.type}
+            />
+          ))}
+        </div>
+      ) : null}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={e => void handleFile(e)}
+      />
+      <button
+        type="button"
+        className={styles.flipBookUploadBtn}
+        onClick={() => fileInputRef.current?.click()}
+        onMouseDown={e => e.stopPropagation()}
+      >
+        📷 上傳照片
+      </button>
     </div>
   );
 };
