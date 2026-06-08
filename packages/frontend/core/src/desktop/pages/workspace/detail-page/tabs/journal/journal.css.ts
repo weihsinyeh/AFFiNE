@@ -912,6 +912,66 @@ export const meetingEditorControl = style({
   },
 });
 
+export const meetingVideoGenBtn = style({
+  flex: 1,
+  minWidth: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 4,
+  padding: '5px 8px',
+  borderRadius: 4,
+  border: `1px solid ${cssVarV2.calendar.purple}`,
+  background: 'transparent',
+  color: cssVarV2.calendar.purple,
+  fontSize: cssVar('fontXs'),
+  fontWeight: 500,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  selectors: {
+    '&:hover': { background: 'rgba(124,77,255,0.08)' },
+  },
+});
+
+export const meetingVideoRow = style({
+  flex: 1,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  minWidth: 0,
+});
+
+export const meetingVideoLink = style({
+  flex: 1,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
+  fontSize: cssVar('fontXs'),
+  color: cssVar('primaryColor'),
+  textDecoration: 'none',
+  selectors: {
+    '&:hover': { textDecoration: 'underline' },
+  },
+});
+
+export const meetingVideoIconBtn = style({
+  flexShrink: 0,
+  padding: '3px 6px',
+  borderRadius: 4,
+  border: `1px solid ${cssVar('borderColor')}`,
+  background: 'transparent',
+  color: cssVar('textSecondaryColor'),
+  fontSize: cssVar('fontXs'),
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': {
+      background: cssVar('hoverColor'),
+      color: cssVar('textPrimaryColor'),
+    },
+  },
+});
+
 export const meetingEditorOpenBtn = style({
   marginTop: 2,
   padding: '5px 8px',

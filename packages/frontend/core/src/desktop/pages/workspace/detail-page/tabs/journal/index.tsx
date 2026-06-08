@@ -500,6 +500,31 @@ const MEETING_PROP = {
   endTime: 'meeting_endTime',
   repeat: 'meeting_repeat',
   location: 'meeting_location',
+  videoLink: 'meeting_videoLink',
+};
+
+// Hostpoint Meet is a free, Swiss-hosted, account-free Jitsi service: visiting
+// https://meet.hostpoint.ch/<room> opens (or creates) that room, the link
+// doesn't expire, and it can be reopened any time — so a generated link works
+// as a real video call whenever it's clicked. We just mint a hard-to-guess
+// room name on the client; no API, key, or login needed.
+const VIDEO_MEETING_BASE = 'https://meet.hostpoint.ch';
+
+const generateMeetingRoomUrl = (title: string) => {
+  const slug = title
+    .normalize('NFKD')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24)
+    .toLowerCase();
+  const bytes = new Uint8Array(9);
+  (globalThis.crypto ?? window.crypto).getRandomValues(bytes);
+  const token = Array.from(bytes, b => b.toString(36))
+    .join('')
+    .replace(/[^a-z0-9]/g, '')
+    .slice(0, 12);
+  const room = `inote-${slug ? `${slug}-` : ''}${token}`;
+  return `${VIDEO_MEETING_BASE}/${room}`;
 };
 
 /** 00:00 … 23:30 in 30-minute steps for the time-range dropdowns. */
@@ -661,6 +686,50 @@ const MeetingEditor = ({
           placeholder="地點…"
           onChange={e => set(MEETING_PROP.location, e.target.value)}
         />
+      </div>
+      <div className={styles.meetingEditorField}>
+        <span className={styles.meetingEditorLabel}>視訊</span>
+        {get(MEETING_PROP.videoLink) ? (
+          <div className={styles.meetingVideoRow}>
+            <a
+              className={styles.meetingVideoLink}
+              href={get(MEETING_PROP.videoLink)}
+              target="_blank"
+              rel="noreferrer"
+              title={get(MEETING_PROP.videoLink)}
+            >
+              {get(MEETING_PROP.videoLink).replace(/^https:\/\//, '')}
+            </a>
+            <button
+              className={styles.meetingVideoIconBtn}
+              title="複製連結"
+              onClick={() => {
+                navigator.clipboard
+                  ?.writeText(get(MEETING_PROP.videoLink))
+                  .then(() => notify.success({ title: '已複製連結' }))
+                  .catch(() => {});
+              }}
+            >
+              複製
+            </button>
+            <button
+              className={styles.meetingVideoIconBtn}
+              title="移除連結"
+              onClick={() => set(MEETING_PROP.videoLink, '')}
+            >
+              ✕
+            </button>
+          </div>
+        ) : (
+          <button
+            className={styles.meetingVideoGenBtn}
+            onClick={() =>
+              set(MEETING_PROP.videoLink, generateMeetingRoomUrl(cleanTitle))
+            }
+          >
+            🎥 產生視訊會議連結
+          </button>
+        )}
       </div>
       <button
         className={styles.meetingEditorOpenBtn}
