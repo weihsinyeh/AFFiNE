@@ -500,11 +500,29 @@ const MEETING_TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
 
 const MEETING_REPEAT_OPTIONS = [
   { value: '', label: '不重複' },
-  { value: 'daily', label: '每天' },
   { value: 'weekly', label: '每週' },
   { value: 'monthly', label: '每月' },
   { value: 'yearly', label: '每年' },
 ];
+
+/**
+ * Does a repeating meeting that starts on `startStr` recur on `dayStr`?
+ * weekly = same weekday, monthly = same day-of-month, yearly = same month+day.
+ */
+const matchesRecurrence = (
+  startStr: string,
+  dayStr: string,
+  repeat: string
+) => {
+  const s = dayjs(startStr);
+  const d = dayjs(dayStr);
+  if (!s.isValid() || !d.isValid() || d.isBefore(s, 'day')) return false;
+  if (repeat === 'weekly') return d.diff(s, 'day') % 7 === 0;
+  if (repeat === 'monthly') return d.date() === s.date();
+  if (repeat === 'yearly')
+    return d.month() === s.month() && d.date() === s.date();
+  return false;
+};
 
 /**
  * Editable meeting details, shown when a meeting name is clicked: rename plus
@@ -651,6 +669,17 @@ const MeetingEditor = ({
           ))}
         </select>
       </div>
+      {get(MEETING_PROP.repeat) ? (
+        <div className={styles.meetingEditorField}>
+          <span className={styles.meetingEditorLabel}>期限</span>
+          <input
+            type="date"
+            className={styles.meetingEditorControl}
+            value={get(MEETING_PROP.repeatUntil)}
+            onChange={e => set(MEETING_PROP.repeatUntil, e.target.value)}
+          />
+        </div>
+      ) : null}
       <div className={styles.meetingEditorField}>
         <span className={styles.meetingEditorLabel}>地點</span>
         <input
@@ -913,7 +942,23 @@ const FullCalendarDayCell = ({
             props['custom:meeting_startDate'] || props['journal'] || '';
           if (!start) continue;
           const end = props['custom:meeting_endDate'] || start;
-          if (dateKey >= start && dateKey <= end) result.push(doc);
+          // (a) base contiguous range (start … end)
+          if (dateKey >= start && dateKey <= end) {
+            result.push(doc);
+            continue;
+          }
+          // (b) recurrence: tag each repeat occurrence up to the until date.
+          const repeat = props['custom:meeting_repeat'] || '';
+          const until = props['custom:meeting_repeatUntil'] || '';
+          if (
+            repeat &&
+            until &&
+            dateKey > end &&
+            dateKey <= until &&
+            matchesRecurrence(start, dateKey, repeat)
+          ) {
+            result.push(doc);
+          }
         }
         return result;
       }),

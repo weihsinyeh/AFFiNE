@@ -13,6 +13,7 @@ export const MEETING_PROP = {
   startTime: 'meeting_startTime',
   endTime: 'meeting_endTime',
   repeat: 'meeting_repeat',
+  repeatUntil: 'meeting_repeatUntil',
   location: 'meeting_location',
   videoLink: 'meeting_videoLink',
 };
