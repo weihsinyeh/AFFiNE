@@ -868,6 +868,31 @@ const FullCalendarDayCell = ({
     todoDoc: null,
   };
 
+  // Meetings whose date range (meeting_startDate … meeting_endDate, falling
+  // back to the journal date) covers this day — so a multi-day meeting is
+  // tagged on every day in its range, not only the first. Used for display;
+  // `meetingDocs` (journal-date matched) still drives new-meeting numbering.
+  const rangeMeetings$ = useMemo(
+    () =>
+      LiveData.computed(get => {
+        const result: DocRecord[] = [];
+        for (const doc of get(docsService.list.docs$)) {
+          const title = get(doc.meta$)?.title ?? '';
+          if (!title.startsWith('Meeting ·')) continue;
+          if (get(doc.trash$)) continue;
+          const props = get(doc.properties$);
+          const start =
+            props['custom:meeting_startDate'] || props['journal'] || '';
+          if (!start) continue;
+          const end = props['custom:meeting_endDate'] || start;
+          if (dateKey >= start && dateKey <= end) result.push(doc);
+        }
+        return result;
+      }),
+    [docsService, dateKey]
+  );
+  const rangeMeetingDocs = useLiveData(rangeMeetings$) ?? [];
+
   useEffect(() => {
     if (journalDocs.length === 0) {
       setHasJournalContent(false);
@@ -903,7 +928,7 @@ const FullCalendarDayCell = ({
   const tagCount =
     (hasJournalContent ? 1 : 0) +
     (hasTodoSection ? 1 : 0) +
-    (meetingDocs.length > 0 ? 1 : 0);
+    (rangeMeetingDocs.length > 0 ? 1 : 0);
   const maxEvents = Math.max(0, 4 - tagCount);
   const visibleEvents = events.slice(0, maxEvents);
   const hiddenCount = events.length - visibleEvents.length;
@@ -1032,8 +1057,8 @@ const FullCalendarDayCell = ({
             Todo
           </span>
         ) : null}
-        {meetingDocs.length > 0 ? (
-          <MeetingDropdown docs={meetingDocs} dateKey={dateKey} />
+        {rangeMeetingDocs.length > 0 ? (
+          <MeetingDropdown docs={rangeMeetingDocs} dateKey={dateKey} />
         ) : null}
         {visibleEvents.map(event => (
           <span
