@@ -563,6 +563,38 @@ const MeetingEditor = ({
     }
   }, [name, doc.id, docsService]);
 
+  // Mirror the 地點 field into the meeting note body's "Location" section
+  // (the paragraph right after the "Location" heading), so the two stay in sync.
+  const syncLocationToBody = useCallback(
+    (location: string) => {
+      try {
+        const { doc: opened, release } = docsService.open(doc.id);
+        try {
+          const store = opened.blockSuiteDoc;
+          store.load();
+          const note = store.getBlocksByFlavour('affine:note')[0];
+          const children =
+            (note?.model as { children?: { text?: Text }[] })?.children ?? [];
+          const idx = children.findIndex(
+            c => c.text?.toString().trim() === 'Location'
+          );
+          if (idx >= 0 && idx + 1 < children.length) {
+            const t = children[idx + 1].text;
+            if (t) {
+              t.delete(0, t.length);
+              if (location) t.insert(location, 0);
+            }
+          }
+        } finally {
+          release();
+        }
+      } catch (e) {
+        console.error('meeting location sync failed', e);
+      }
+    },
+    [docsService, doc.id]
+  );
+
   const allDay = get(MEETING_PROP.allDay) === '1';
 
   return (
@@ -687,6 +719,7 @@ const MeetingEditor = ({
           value={get(MEETING_PROP.location)}
           placeholder="地點…"
           onChange={e => set(MEETING_PROP.location, e.target.value)}
+          onBlur={e => syncLocationToBody(e.target.value)}
         />
       </div>
       <div className={styles.meetingEditorField}>
