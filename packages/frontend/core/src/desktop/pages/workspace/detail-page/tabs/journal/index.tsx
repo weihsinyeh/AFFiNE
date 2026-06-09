@@ -514,9 +514,11 @@ const MEETING_REPEAT_OPTIONS = [
 const MeetingEditor = ({
   doc,
   dateKey,
+  onDeleted,
 }: {
   doc: DocRecord;
   dateKey: string;
+  onDeleted?: () => void;
 }) => {
   const docsService = useService(DocsService);
   const workbench = useService(WorkbenchService).workbench;
@@ -567,14 +569,20 @@ const MeetingEditor = ({
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
         }}
       />
-      <label className={styles.meetingEditorCheck}>
-        <input
-          type="checkbox"
-          checked={allDay}
-          onChange={e => set(MEETING_PROP.allDay, e.target.checked ? '1' : '')}
-        />
-        全天
-      </label>
+      <div className={styles.meetingEditorField}>
+        <span className={styles.meetingEditorLabel}>全天</span>
+        <label className={styles.meetingEditorCheck}>
+          <input
+            type="checkbox"
+            className={styles.meetingEditorCheckbox}
+            checked={allDay}
+            onChange={e =>
+              set(MEETING_PROP.allDay, e.target.checked ? '1' : '')
+            }
+          />
+          {allDay ? '是' : '否'}
+        </label>
+      </div>
       <div className={styles.meetingEditorField}>
         <span className={styles.meetingEditorLabel}>日期</span>
         <div className={styles.meetingEditorRange}>
@@ -696,12 +704,24 @@ const MeetingEditor = ({
           </button>
         )}
       </div>
-      <button
-        className={styles.meetingEditorOpenBtn}
-        onClick={() => workbench.openDoc(doc.id, { at: 'active' })}
-      >
-        開啟會議筆記
-      </button>
+      <div className={styles.meetingEditorActions}>
+        <button
+          className={styles.meetingEditorOpenBtn}
+          onClick={() => workbench.openDoc(doc.id, { at: 'active' })}
+        >
+          開啟會議筆記
+        </button>
+        <button
+          className={styles.meetingEditorDeleteBtn}
+          // moveToTrash is recoverable from the Trash section.
+          onClick={() => {
+            doc.moveToTrash();
+            onDeleted?.();
+          }}
+        >
+          🗑 刪除會議
+        </button>
+      </div>
     </div>
   );
 };
@@ -741,7 +761,11 @@ const MeetingDropdown = ({
         rootOptions={{ open, onOpenChange: setOpen }}
         items={
           <div className={styles.meetingDropdownContent}>
-            <MeetingEditor doc={doc} dateKey={dateKey} />
+            <MeetingEditor
+              doc={doc}
+              dateKey={dateKey}
+              onDeleted={() => setOpen(false)}
+            />
           </div>
         }
       >
@@ -782,7 +806,11 @@ const MeetingDropdown = ({
                   </IconButton>
                 </div>
                 {expanded ? (
-                  <MeetingEditor doc={doc} dateKey={dateKey} />
+                  <MeetingEditor
+                    doc={doc}
+                    dateKey={dateKey}
+                    onDeleted={() => setExpandedId(null)}
+                  />
                 ) : null}
               </div>
             );

@@ -867,10 +867,19 @@ export const meetingEditorCheck = style({
   display: 'flex',
   alignItems: 'center',
   gap: 6,
-  fontSize: cssVar('fontSm'),
+  fontSize: cssVar('fontXs'),
   color: cssVar('textPrimaryColor'),
   cursor: 'pointer',
   userSelect: 'none',
+});
+
+export const meetingEditorCheckbox = style({
+  width: 16,
+  height: 16,
+  margin: 0,
+  flexShrink: 0,
+  cursor: 'pointer',
+  accentColor: cssVar('primaryColor'),
 });
 
 export const meetingEditorField = style({
@@ -972,8 +981,14 @@ export const meetingVideoIconBtn = style({
   },
 });
 
-export const meetingEditorOpenBtn = style({
+export const meetingEditorActions = style({
+  display: 'flex',
+  gap: 6,
   marginTop: 2,
+});
+
+export const meetingEditorOpenBtn = style({
+  flex: 1,
   padding: '5px 8px',
   borderRadius: 4,
   border: 'none',
@@ -983,6 +998,20 @@ export const meetingEditorOpenBtn = style({
   cursor: 'pointer',
   selectors: {
     '&:hover': { background: cssVarV2.layer.background.secondary },
+  },
+});
+
+export const meetingEditorDeleteBtn = style({
+  flexShrink: 0,
+  padding: '5px 8px',
+  borderRadius: 4,
+  border: 'none',
+  background: 'transparent',
+  color: cssVarV2.status.error,
+  fontSize: cssVar('fontXs'),
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': { background: 'rgba(220,40,40,0.1)' },
   },
 });
 
